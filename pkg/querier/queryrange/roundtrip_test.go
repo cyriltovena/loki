@@ -218,6 +218,7 @@ func TestLogFilterTripperware(t *testing.T) {
 	require.Error(t, err)
 }
 
+<<<<<<< HEAD
 func TestInstantQueryTripperware(t *testing.T) {
 
 	testShardingConfig := testConfig
@@ -257,6 +258,8 @@ func TestInstantQueryTripperware(t *testing.T) {
 	require.IsType(t, &LokiPromResponse{}, lokiResponse)
 }
 
+=======
+>>>>>>> c9ed17d5e7889d32e941e80e3126e904330f113f
 func TestSeriesTripperware(t *testing.T) {
 	tpw, stopper, err := NewTripperware(testConfig, util_log.Logger, fakeLimits{}, chunk.SchemaConfig{}, 0, nil)
 	if stopper != nil {
@@ -552,6 +555,7 @@ type fakeLimits struct {
 	maxEntriesLimitPerQuery int
 	maxSeries               int
 	splits                  map[string]time.Duration
+	minShardingLookback     time.Duration
 }
 
 func (f fakeLimits) QuerySplitDuration(key string) time.Duration {
@@ -586,6 +590,10 @@ func (f fakeLimits) MaxCacheFreshness(string) time.Duration {
 
 func (f fakeLimits) MaxQueryLookback(string) time.Duration {
 	return 0
+}
+
+func (f fakeLimits) MinShardingLookback(string) time.Duration {
+	return f.minShardingLookback
 }
 
 func counter() (*int, http.Handler) {
