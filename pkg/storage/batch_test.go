@@ -47,10 +47,6 @@ func Test_batchIterSafeStart(t *testing.T) {
 	// if it was started already, we should see a panic before this
 	time.Sleep(time.Millisecond)
 
-	// ensure idempotency
-	batch.Start()
-	batch.Start()
-
 	require.NotNil(t, batch.Next())
 }
 

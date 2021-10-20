@@ -124,32 +124,11 @@ func newBatchChunkIterator(
 	return res
 }
 
-// Start is idempotent and will begin the processing thread which seeds the iterator data.
-func (it *batchChunkIterator) Start() {
-	if !it.begun {
-		it.begun = true
-		go it.loop()
-	}
-}
-
-func (it *batchChunkIterator) loop() {
-	for {
-		if it.chunks.Len() == 0 {
-			close(it.next)
-			return
-		}
-		select {
-		case <-it.ctx.Done():
-			close(it.next)
-			return
-		case it.next <- it.nextBatch():
-		}
-	}
-}
-
 func (it *batchChunkIterator) Next() *chunkBatch {
-	it.Start() // Ensure the iterator has started.
-	return <-it.next
+	if it.chunks.Len() == 0 {
+		return nil
+	}
+	return it.nextBatch()
 }
 
 func (it *batchChunkIterator) nextBatch() (res *chunkBatch) {
