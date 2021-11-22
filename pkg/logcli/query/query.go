@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"sort"
 	"strings"
@@ -386,27 +385,22 @@ func plot(matrix loghttp.Matrix) {
 	}
 	defer ui.Close()
 
-	sinData := func() [][]float64 {
-		n := 220
-		data := make([][]float64, 2)
-		data[0] = make([]float64, n)
-		data[1] = make([]float64, n)
-		for i := 0; i < n; i++ {
-			data[0][i] = 1 + math.Sin(float64(i)/5)
-			data[1][i] = 1 + math.Cos(float64(i)/5)
-		}
-		return data
-	}()
-
 	p0 := widgets.NewPlot()
 	p0.Title = "braille-mode Line Chart"
-	p0.Data = sinData
-	p0.SetRect(0, 0, 50, 15)
+	p0.SetRect(0, 0, 200, 30)
 	p0.AxesColor = ui.ColorWhite
-	p0.LineColors[0] = ui.ColorGreen
+	p0.Marker = widgets.MarkerBraille
+	p0.PlotType = widgets.ScatterPlot
 
-	for _, s := range matrix.Streams {
+	p0.DataLabels = make([]string, len(matrix))
+	p0.Data = make([][]float64, len(matrix))
+	for j, s := range matrix {
+		for _, e := range s.Values {
+			p0.Data[j] = append(p0.Data[j], float64(e.Value))
+		}
+		p0.DataLabels[j] = s.Metric.String()
 	}
+	p0.ShowAxes = true
 
 	ui.Render(p0)
 
