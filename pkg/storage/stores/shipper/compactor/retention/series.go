@@ -3,8 +3,6 @@ package retention
 import (
 	"github.com/prometheus/prometheus/model/labels"
 	"go.etcd.io/bbolt"
-
-	"github.com/grafana/loki/pkg/storage/chunk"
 )
 
 type userSeries struct {
@@ -93,17 +91,15 @@ type seriesLabels struct {
 
 type seriesLabelsMapper struct {
 	cursor *bbolt.Cursor
-	config chunk.PeriodConfig
 
 	bufKey  userSeries
 	mapping map[string]*seriesLabels
 }
 
-func newSeriesLabelsMapper(bucket *bbolt.Bucket, config chunk.PeriodConfig) (*seriesLabelsMapper, error) {
+func newSeriesLabelsMapper(bucket *bbolt.Bucket) (*seriesLabelsMapper, error) {
 	sm := &seriesLabelsMapper{
 		cursor:  bucket.Cursor(),
 		mapping: map[string]*seriesLabels{},
-		config:  config,
 		bufKey:  newUserSeries(nil, nil),
 	}
 	if err := sm.build(); err != nil {

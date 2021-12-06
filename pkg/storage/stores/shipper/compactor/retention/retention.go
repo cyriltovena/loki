@@ -92,7 +92,7 @@ func (t *Marker) markTable(ctx context.Context, tableName string, db *bbolt.DB) 
 			return nil
 		}
 
-		chunkIt, err := newChunkIndexIterator(bucket, schemaCfg)
+		chunkIt, err := NewChunkIndexIterator(bucket)
 		if err != nil {
 			return fmt.Errorf("failed to create chunk index iterator: %w", err)
 		}

@@ -37,8 +37,8 @@ type chunkIndexIterator struct {
 	labelsMapper *seriesLabelsMapper
 }
 
-func newChunkIndexIterator(bucket *bbolt.Bucket, config chunk.PeriodConfig) (*chunkIndexIterator, error) {
-	labelsMapper, err := newSeriesLabelsMapper(bucket, config)
+func NewChunkIndexIterator(bucket *bbolt.Bucket) (ChunkEntryIterator, error) {
+	labelsMapper, err := newSeriesLabelsMapper(bucket)
 	if err != nil {
 		return nil, err
 	}

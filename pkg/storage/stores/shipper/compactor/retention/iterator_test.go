@@ -32,7 +32,7 @@ func Test_ChunkIterator(t *testing.T) {
 			require.Len(t, tables, 1)
 			var actual []ChunkEntry
 			err := tables[0].DB.Update(func(tx *bbolt.Tx) error {
-				it, err := newChunkIndexIterator(tx.Bucket(bucketName), tt.config)
+				it, err := NewChunkIndexIterator(tx.Bucket(bucketName))
 				require.NoError(t, err)
 				for it.Next() {
 					require.NoError(t, it.Err())
@@ -53,7 +53,7 @@ func Test_ChunkIterator(t *testing.T) {
 			// second pass we delete c2
 			actual = actual[:0]
 			err = tables[0].DB.Update(func(tx *bbolt.Tx) error {
-				it, err := newChunkIndexIterator(tx.Bucket(bucketName), tt.config)
+				it, err := NewChunkIndexIterator(tx.Bucket(bucketName))
 				require.NoError(t, err)
 				for it.Next() {
 					actual = append(actual, it.Entry())
@@ -87,7 +87,7 @@ func Test_SeriesCleaner(t *testing.T) {
 			require.Len(t, tables, 1)
 			// remove c1, c2 chunk
 			err := tables[0].DB.Update(func(tx *bbolt.Tx) error {
-				it, err := newChunkIndexIterator(tx.Bucket(bucketName), tt.config)
+				it, err := NewChunkIndexIterator(tx.Bucket(bucketName))
 				require.NoError(t, err)
 				for it.Next() {
 					require.NoError(t, it.Err())
@@ -170,7 +170,7 @@ func Benchmark_ChunkIterator(b *testing.B) {
 	_ = store.indexTables()[0].Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket(bucketName)
 		for n := 0; n < b.N; n++ {
-			it, err := newChunkIndexIterator(bucket, allSchemas[0].config)
+			it, err := NewChunkIndexIterator(bucket)
 			require.NoError(b, err)
 			for it.Next() {
 				chunkEntry = it.Entry()
