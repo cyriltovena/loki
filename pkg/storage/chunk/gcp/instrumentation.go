@@ -53,6 +53,8 @@ func bigtableInstrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClie
 func gcsInstrumentation(ctx context.Context, scope string, insecure bool) (*http.Client, error) {
 	// start with default transport
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport.MaxIdleConnsPerHost = 100
+	customTransport.MaxIdleConns = 100
 	if insecure {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
