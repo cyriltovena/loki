@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"crypto/tls"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -52,10 +53,22 @@ func bigtableInstrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClie
 
 func gcsInstrumentation(ctx context.Context, scope string, insecure bool, http2 bool) (*http.Client, error) {
 	// start with default transport
-	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 	customTransport.MaxIdleConnsPerHost = 200
 	customTransport.MaxIdleConns = 200
 	if !http2 {
+		customTransport.ForceAttemptHTTP2 = false
 		// disable HTTP/2 by setting TLSNextProto to non-nil empty map, as per the net/http documentation.
 		// see http2 section of https://pkg.go.dev/net/http
 		customTransport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)

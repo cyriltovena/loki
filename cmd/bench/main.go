@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ func main() {
 	client, err := gcp.NewGCSObjectClient(context.Background(), gcp.GCSConfig{
 		BucketName:       "ops-tools-tempo-dev",
 		EnableOpenCensus: false,
+		EnableHTTP2:      false,
 	}, hedging.Config{})
 	if err != nil {
 		panic(err)
@@ -71,13 +73,13 @@ func main() {
 			buffer := bytes.NewBuffer(make([]byte, 0, size))
 			for ctx.Err() == nil {
 				buffer.Reset()
-				reader, err := client.GetObject(ctx, name)
+				reader, _, err := client.GetObject(ctx, name)
 				if err != nil {
-					log.Fatal(err)
+					log.Fatal(fmt.Errorf("err Get:%w", err))
 				}
 				n, err := buffer.ReadFrom(reader)
 				if err != nil {
-					log.Fatal(err)
+					log.Fatal(fmt.Errorf("err Read:%w", err))
 					reader.Close()
 					continue
 				}
