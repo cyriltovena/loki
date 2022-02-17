@@ -1,14 +1,27 @@
 package indexgateway
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net"
+	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/weaveworks/common/middleware"
+	"github.com/weaveworks/common/user"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/grafana/loki/pkg/storage/chunk"
+	"github.com/grafana/loki/pkg/storage/chunk/local"
+	"github.com/grafana/loki/pkg/storage/stores/shipper/downloads"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/indexgateway/indexgatewaypb"
+	"github.com/grafana/loki/pkg/storage/stores/shipper/storage"
+	"github.com/grafana/loki/pkg/storage/stores/shipper/testutil"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/util"
 	util_math "github.com/grafana/loki/pkg/util/math"
 )
@@ -115,5 +128,78 @@ func TestGateway_sendBatch(t *testing.T) {
 
 		// verify that we actually got responses back by checking if expectedRanges got cleared.
 		require.Len(t, expectedRanges, 0)
+	}
+}
+
+var total int
+
+func Benchmark_IndexQueries(b *testing.B) {
+	buffer := 1024 * 1024
+	listener := bufconn.Listen(buffer)
+
+	s := grpc.NewServer(grpc.ChainStreamInterceptor(func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		return middleware.StreamServerUserHeaderInterceptor(srv, ss, info, handler)
+	}))
+	conn, _ := grpc.DialContext(context.Background(), "", grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}), grpc.WithInsecure())
+	defer func() {
+		s.Stop()
+		conn.Close()
+	}()
+
+	dir := b.TempDir()
+	bclient, err := local.NewBoltDBIndexClient(local.BoltDBConfig{
+		Directory: dir + "/boltdb",
+	})
+	numRecords := 10000
+	require.NoError(b, os.MkdirAll(dir+"/index/test_table", 0777))
+	require.NoError(b, os.MkdirAll(dir+"/cache/test_table", 0777))
+	testutil.AddRecordsToDB(b, dir+"/index/test_table/db1", bclient, 0, numRecords, []byte("index"))
+	testutil.AddRecordsToDB(b, dir+"/cache/test_table/db1", bclient, 0, numRecords, []byte("index"))
+	require.NoError(b, err)
+	fs, err := local.NewFSObjectClient(local.FSConfig{
+		Directory: dir,
+	})
+	require.NoError(b, err)
+	tm, err := downloads.NewTableManager(downloads.Config{
+		CacheDir:          dir + "/cache",
+		SyncInterval:      15 * time.Minute,
+		CacheTTL:          15 * time.Minute,
+		QueryReadyNumDays: 30,
+	}, bclient, storage.NewIndexStorageClient(fs, "index/"), nil)
+	require.NoError(b, err)
+	gw := NewIndexGateway(tm)
+	indexgatewaypb.RegisterIndexGatewayServer(s, gw)
+	ctx := user.InjectOrgID(context.Background(), "fooid")
+	go func() {
+		if err := s.Serve(listener); err != nil {
+			panic(err)
+		}
+	}()
+	client := indexgatewaypb.NewIndexGatewayClient(conn)
+	queries := []*indexgatewaypb.IndexQuery{}
+	for i := 0; i < numRecords; i++ {
+		queries = append(queries, &indexgatewaypb.IndexQuery{
+			TableName:  "test_table",
+			ValueEqual: []byte(strconv.Itoa(i)),
+		})
+	}
+	ctx, _ = user.InjectIntoGRPCRequest(ctx)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stream, err := client.QueryIndex(ctx, &indexgatewaypb.QueryIndexRequest{Queries: queries})
+		require.NoError(b, err)
+		var resp *indexgatewaypb.QueryIndexResponse
+		for {
+			resp, err = stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				break
+			}
+			total += len(resp.Rows)
+		}
 	}
 }

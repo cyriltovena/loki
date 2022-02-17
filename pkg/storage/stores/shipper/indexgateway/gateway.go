@@ -1,23 +1,30 @@
 package indexgateway
 
 import (
+	"context"
+
 	"github.com/grafana/dskit/services"
 
 	"github.com/grafana/loki/pkg/storage/chunk"
-	"github.com/grafana/loki/pkg/storage/stores/shipper"
+	chunk_util "github.com/grafana/loki/pkg/storage/chunk/util"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/indexgateway/indexgatewaypb"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/util"
 )
 
 const maxIndexEntriesPerResponse = 1000
 
+type IndexQuerier interface {
+	QueryPages(ctx context.Context, queries []chunk.IndexQuery, callback chunk_util.Callback) error
+	Stop()
+}
+
 type gateway struct {
 	services.Service
 
-	shipper chunk.IndexClient
+	shipper IndexQuerier
 }
 
-func NewIndexGateway(shipperIndexClient *shipper.Shipper) *gateway {
+func NewIndexGateway(shipperIndexClient IndexQuerier) *gateway {
 	g := &gateway{
 		shipper: shipperIndexClient,
 	}
@@ -42,7 +49,9 @@ func (g gateway) QueryIndex(request *indexgatewaypb.QueryIndexRequest, server in
 			ValueEqual:       query.ValueEqual,
 		})
 	}
+	//~2k * 100 = 100k goroutine competing for grpc http2
 	outerErr = g.shipper.QueryPages(server.Context(), queries, func(query chunk.IndexQuery, batch chunk.ReadBatch) bool {
+		// 100 goroutines
 		innerErr = g.sendBatch(server, query, batch)
 		if innerErr != nil {
 			return false

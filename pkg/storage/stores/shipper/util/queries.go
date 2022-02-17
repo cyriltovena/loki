@@ -33,7 +33,7 @@ func DoParallelQueries(ctx context.Context, tableQuerier TableQuerier, queries [
 	errs := make(chan error)
 
 	id := NewIndexDeduper(callback)
-
+	// return tableQuerier.MultiQueries(ctx, queries, id.Callback)
 	if len(queries) <= maxQueriesPerGoroutine {
 		return tableQuerier.MultiQueries(ctx, queries, id.Callback)
 	}
