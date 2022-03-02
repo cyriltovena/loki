@@ -10,13 +10,17 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/gorilla/websocket"
 	json "github.com/json-iterator/go"
 	"github.com/prometheus/common/config"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/grafana/loki/pkg/iter"
 	"github.com/grafana/loki/pkg/loghttp"
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/build"
 )
@@ -77,24 +81,68 @@ func (c *DefaultClient) Query(queryStr string, limit int, time time.Time, direct
 // excluding interfacer b/c it suggests taking the interface promql.Node instead of logproto.Direction b/c it happens to have a String() method
 // nolint:interfacer
 func (c *DefaultClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, quiet bool) (*loghttp.QueryResponse, error) {
-	params := util.NewQueryStringBuilder()
-	params.SetString("query", queryStr)
-	params.SetInt32("limit", limit)
-	params.SetInt("start", start.UnixNano())
-	params.SetInt("end", end.UnixNano())
-	params.SetString("direction", direction.String())
+	g := errgroup.Group{}
+	result := make([]*loghttp.QueryResponse, 16)
+	for i := 0; i < 16; i++ {
+		n := i
+		g.Go(func() error {
+			params := util.NewQueryStringBuilder()
+			params.SetString("query", queryStr)
+			params.SetInt32("limit", limit)
+			params.SetInt("start", start.UnixNano())
+			params.SetInt("end", end.UnixNano())
+			params.SetString("direction", direction.String())
+			params.SetString("shards", fmt.Sprintf("%d_of_16", n))
 
-	// The step is optional, so we do set it only if provided,
-	// otherwise we do leverage on the API defaults
-	if step != 0 {
-		params.SetFloat("step", step.Seconds())
+			// The step is optional, so we do set it only if provided,
+			// otherwise we do leverage on the API defaults
+			if step != 0 {
+				params.SetFloat("step", step.Seconds())
+			}
+
+			if interval != 0 {
+				params.SetFloat("interval", interval.Seconds())
+			}
+			resp, err := c.doQuery(queryRangePath, params.Encode(), quiet)
+			if err == nil {
+				result[n] = resp
+			}
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	// Merge the results
+	iters := make([]iter.EntryIterator, 16)
+	for i, r := range result {
+		iters[i] = iter.NewStreamsIterator(r.Data.Result.(loghttp.Streams).ToProto(), direction)
+	}
+	res, _, err := iter.ReadBatch(iter.NewSortEntryIterator(iters, direction), uint32(limit*16))
+	if err != nil {
+		return nil, err
 	}
 
-	if interval != 0 {
-		params.SetFloat("interval", interval.Seconds())
-	}
+	return &loghttp.QueryResponse{
+		Status: "success",
+		Data: loghttp.QueryResponseData{
+			ResultType: loghttp.ResultTypeStream,
+			Result:     resultFromProto(res.Streams),
+		},
+	}, nil
+}
 
-	return c.doQuery(queryRangePath, params.Encode(), quiet)
+func resultFromProto(s []logproto.Stream) loghttp.Streams {
+	if len(s) == 0 {
+		return nil
+	}
+	result := make([]loghttp.Stream, 0, len(s))
+	for _, s := range s {
+		entries := *(*[]loghttp.Entry)(unsafe.Pointer(&s.Entries))
+		lbs, _ := logql.ParseLabels(s.Labels)
+		result = append(result, loghttp.Stream{Labels: lbs.Map(), Entries: entries})
+	}
+	return result
 }
 
 // ListLabelNames uses the /api/v1/label endpoint to list label names
