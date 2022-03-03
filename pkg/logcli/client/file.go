@@ -100,7 +100,7 @@ func (f *FileClient) Query(q string, limit int, t time.Time, direction logproto.
 	}, nil
 }
 
-func (f *FileClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, quiet bool) (*loghttp.QueryResponse, error) {
+func (f *FileClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, shardID int, quiet bool) (*loghttp.QueryResponse, error) {
 	ctx := context.Background()
 
 	ctx = user.InjectOrgID(ctx, f.orgID)
@@ -216,7 +216,6 @@ func newFileIterator(
 	params logql.SelectLogParams,
 	pipeline logqllog.StreamPipeline,
 ) (iter.EntryIterator, error) {
-
 	lr := io.LimitReader(r, defaultMaxFileSize)
 	b, err := ioutil.ReadAll(lr)
 	if err != nil {

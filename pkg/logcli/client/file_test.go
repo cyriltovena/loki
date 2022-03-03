@@ -77,6 +77,7 @@ func TestFileClient_QueryRangeLogQueries(t *testing.T) {
 				c.direction,
 				c.step,
 				c.interval,
+				-1,
 				true,
 			)
 
@@ -168,7 +169,6 @@ func TestFileClient_ListLabelValues(t *testing.T) {
 		Data:   []string{defaultLabelValue},
 		Status: loghttp.QueryStatusSuccess,
 	}, values)
-
 }
 
 func TestFileClient_Series(t *testing.T) {

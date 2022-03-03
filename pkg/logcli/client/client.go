@@ -1,6 +1,7 @@
 package client
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -15,9 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	json "github.com/json-iterator/go"
 	"github.com/prometheus/common/config"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/grafana/loki/pkg/iter"
 	"github.com/grafana/loki/pkg/loghttp"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql"
@@ -39,7 +38,7 @@ var userAgent = fmt.Sprintf("loki-logcli/%s", build.Version)
 // Client contains all the methods to query a Loki instance, it's an interface to allow multiple implementations.
 type Client interface {
 	Query(queryStr string, limit int, time time.Time, direction logproto.Direction, quiet bool) (*loghttp.QueryResponse, error)
-	QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, quiet bool) (*loghttp.QueryResponse, error)
+	QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, shard int, quiet bool) (*loghttp.QueryResponse, error)
 	ListLabelNames(quiet bool, start, end time.Time) (*loghttp.LabelResponse, error)
 	ListLabelValues(name string, quiet bool, start, end time.Time) (*loghttp.LabelResponse, error)
 	Series(matchers []string, start, end time.Time, quiet bool) (*loghttp.SeriesResponse, error)
@@ -80,56 +79,89 @@ func (c *DefaultClient) Query(queryStr string, limit int, time time.Time, direct
 // QueryRange uses the /api/v1/query_range endpoint to execute a range query
 // excluding interfacer b/c it suggests taking the interface promql.Node instead of logproto.Direction b/c it happens to have a String() method
 // nolint:interfacer
-func (c *DefaultClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, quiet bool) (*loghttp.QueryResponse, error) {
-	g := errgroup.Group{}
-	result := make([]*loghttp.QueryResponse, 16)
-	for i := 0; i < 16; i++ {
-		n := i
-		g.Go(func() error {
-			params := util.NewQueryStringBuilder()
-			params.SetString("query", queryStr)
-			params.SetInt32("limit", limit)
-			params.SetInt("start", start.UnixNano())
-			params.SetInt("end", end.UnixNano())
-			params.SetString("direction", direction.String())
-			params.SetString("shards", fmt.Sprintf("%d_of_16", n))
+// func (c *DefaultClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, quiet bool) (*loghttp.QueryResponse, error) {
+// 	g := errgroup.Group{}
+// 	result := make([]*loghttp.QueryResponse, 16)
+// 	for i := 0; i < 16; i++ {
+// 		n := i
+// 		g.Go(func() error {
+// 			shard := fmt.Sprintf("%d_of_16", n)
+// 			params := util.NewQueryStringBuilder()
+// 			params.SetString("query", queryStr)
+// 			params.SetInt32("limit", limit)
+// 			params.SetInt("start", start.UnixNano())
+// 			params.SetInt("end", end.UnixNano())
+// 			params.SetString("direction", direction.String())
+// 			params.SetString("shards", shard)
 
-			// The step is optional, so we do set it only if provided,
-			// otherwise we do leverage on the API defaults
-			if step != 0 {
-				params.SetFloat("step", step.Seconds())
-			}
+// 			// The step is optional, so we do set it only if provided,
+// 			// otherwise we do leverage on the API defaults
+// 			if step != 0 {
+// 				params.SetFloat("step", step.Seconds())
+// 			}
 
-			if interval != 0 {
-				params.SetFloat("interval", interval.Seconds())
-			}
-			resp, err := c.doQuery(queryRangePath, params.Encode(), quiet)
-			if err == nil {
-				result[n] = resp
-			}
-			return err
-		})
+// 			if interval != 0 {
+// 				params.SetFloat("interval", interval.Seconds())
+// 			}
+// 			resp, err := c.doQuery(queryRangePath, params.Encode(), quiet)
+// 			if err == nil {
+// 				result[n] = resp
+// 			}
+// 			// total := 0
+// 			// for _, r := range resp.Data.Result.(loghttp.Streams) {
+// 			// 	total += len(r.Entries)
+// 			// }
+// 			// fmt.Printf("shards:%s => total:%d\n", shard, total)
+// 			return err
+// 		})
+// 	}
+// 	if err := g.Wait(); err != nil {
+// 		return nil, err
+// 	}
+// 	// Merge the results
+// 	iters := make([]iter.EntryIterator, 16)
+// 	for i, r := range result {
+// 		iters[i] = iter.NewStreamsIterator(r.Data.Result.(loghttp.Streams).ToProto(), direction)
+// 	}
+// 	res, _, err := iter.ReadBatch(iter.NewSortEntryIterator(iters, direction), uint32(limit))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &loghttp.QueryResponse{
+// 		Status: "success",
+// 		Data: loghttp.QueryResponseData{
+// 			ResultType: loghttp.ResultTypeStream,
+// 			Result:     resultFromProto(res.Streams),
+// 		},
+// 	}, nil
+// }
+
+// QueryRange uses the /api/v1/query_range endpoint to execute a range query
+// excluding interfacer b/c it suggests taking the interface promql.Node instead of logproto.Direction b/c it happens to have a String() method
+// nolint:interfacer
+func (c *DefaultClient) QueryRange(queryStr string, limit int, start, end time.Time, direction logproto.Direction, step, interval time.Duration, shardID int, quiet bool) (*loghttp.QueryResponse, error) {
+	params := util.NewQueryStringBuilder()
+	params.SetString("query", queryStr)
+	params.SetInt32("limit", limit)
+	params.SetInt("start", start.UnixNano())
+	params.SetInt("end", end.UnixNano())
+	params.SetString("direction", direction.String())
+
+	if shardID >= 0 {
+		params.SetString("shards", fmt.Sprintf("%d_of_16", shardID))
 	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	// Merge the results
-	iters := make([]iter.EntryIterator, 16)
-	for i, r := range result {
-		iters[i] = iter.NewStreamsIterator(r.Data.Result.(loghttp.Streams).ToProto(), direction)
-	}
-	res, _, err := iter.ReadBatch(iter.NewSortEntryIterator(iters, direction), uint32(limit*16))
-	if err != nil {
-		return nil, err
+	// The step is optional, so we do set it only if provided,
+	// otherwise we do leverage on the API defaults
+	if step != 0 {
+		params.SetFloat("step", step.Seconds())
 	}
 
-	return &loghttp.QueryResponse{
-		Status: "success",
-		Data: loghttp.QueryResponseData{
-			ResultType: loghttp.ResultTypeStream,
-			Result:     resultFromProto(res.Streams),
-		},
-	}, nil
+	if interval != 0 {
+		params.SetFloat("interval", interval.Seconds())
+	}
+
+	return c.doQuery(queryRangePath, params.Encode(), quiet)
 }
 
 func resultFromProto(s []logproto.Stream) loghttp.Streams {
@@ -248,7 +280,9 @@ func (c *DefaultClient) doRequest(path, query string, quiet bool, out interface{
 	var resp *http.Response
 	attempts := c.Retries + 1
 	success := false
-
+	// req.Close = true
+	// accept gzip
+	req.Header.Add("Accept-Encoding", "gzip")
 	for attempts > 0 {
 		attempts--
 
@@ -271,13 +305,22 @@ func (c *DefaultClient) doRequest(path, query string, quiet bool, out interface{
 	if !success {
 		return fmt.Errorf("Run out of attempts while querying the server")
 	}
+	reader := resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+	}
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			log.Println("error closing body", err)
 		}
 	}()
-	return json.NewDecoder(resp.Body).Decode(out)
+
+	return json.NewDecoder(reader).Decode(out)
 }
 
 func (c *DefaultClient) getHTTPRequestHeader() (http.Header, error) {
