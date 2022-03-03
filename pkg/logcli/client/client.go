@@ -1,6 +1,7 @@
 package client
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -200,7 +201,9 @@ func (c *DefaultClient) doRequest(path, query string, quiet bool, out interface{
 	var resp *http.Response
 	attempts := c.Retries + 1
 	success := false
-
+	// req.Close = true
+	// accept gzip
+	req.Header.Add("Accept-Encoding", "gzip")
 	for attempts > 0 {
 		attempts--
 
@@ -223,13 +226,22 @@ func (c *DefaultClient) doRequest(path, query string, quiet bool, out interface{
 	if !success {
 		return fmt.Errorf("Run out of attempts while querying the server")
 	}
+	reader := resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+	}
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			log.Println("error closing body", err)
 		}
 	}()
-	return json.NewDecoder(resp.Body).Decode(out)
+
+	return json.NewDecoder(reader).Decode(out)
 }
 
 func (c *DefaultClient) getHTTPRequestHeader() (http.Header, error) {
