@@ -121,7 +121,6 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 		for {
 
 			done := make([]int, 0, len(workerResult))
-
 			for i := 0; i < len(workerResult); i++ {
 				result := <-workerResult[i]
 				if result == nil {
@@ -145,6 +144,9 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 			}
 			workerResult = newWorkerResult
 			if len(workerResult) == 0 {
+				break
+			}
+			if len(entries) == 0 {
 				break
 			}
 			// we can only print the min of last entries.
