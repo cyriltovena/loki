@@ -3,7 +3,9 @@ package opentracing
 import (
 	"context"
 	"expvar"
+	"fmt"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -67,7 +69,12 @@ func StartSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operatio
 		opts = append(opts, ChildOf(parentSpan.Context()))
 	}
 	id := uuid.New().String()
-	opts = append(opts, Tag{Key: "span_profile_id", Value: id}, Tag{Key: "span_profile_url", Value: getProfileURL(id)})
+
+	traceID, ok := extractTraceID(ctx)
+	if ok {
+		opts = append(opts, Tag{Key: "trace_profile_id", Value: getProfileURL("traceID", traceID)})
+	}
+	opts = append(opts, Tag{Key: "span_profile_id", Value: id}, Tag{Key: "span_profile_url", Value: getProfileURL("span_profile_id", id)})
 	span := tracer.StartSpan(operationName, opts...)
 	pprofSpan := &pprofLabelsSpan{Span: span}
 	pprof.SetGoroutineLabels(pprof.WithLabels(ctx, pprof.Labels("span_profile_id", id)))
@@ -75,10 +82,10 @@ func StartSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operatio
 	return pprofSpan, pprofSpan.ctx
 }
 
-func getProfileURL(id string) string {
+func getProfileURL(name, id string) string {
 	component := expvar.Get("component").(*expvar.String).Value()
 	purl := expvar.Get("profile_url_prefix").(*expvar.String).Value()
-	return purl + `?query=` + component + `.cpu%7Bspan_profile_id%3D%22` + id + `%22%7D`
+	return purl + `?query=` + component + `.cpu%7B` + name + `%3D%22` + id + `%22%7D`
 }
 
 type pprofLabelsSpan struct {
@@ -89,4 +96,17 @@ type pprofLabelsSpan struct {
 func (s *pprofLabelsSpan) Finish() {
 	pprof.SetGoroutineLabels(pprof.WithLabels(s.ctx, pprof.Labels("span_profile_id", "")))
 	s.Span.Finish()
+}
+
+func extractTraceID(ctx context.Context) (string, bool) {
+	sp := SpanFromContext(ctx)
+	if sp == nil {
+		return "", false
+	}
+	sctx, ok := sp.Context().(fmt.Stringer)
+	if !ok {
+		return "", false
+	}
+	s := strings.Split(sctx.String(), ":")
+	return s[0], true
 }
