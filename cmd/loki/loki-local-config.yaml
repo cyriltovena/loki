@@ -1,5 +1,6 @@
 auth_enabled: false
 inject_pprof_labels: true
+profile_url_prefix: "https://admin-dev-us-central-0.grafana.net/directory-loki/loki-boltdb-shipper/profiling/"
 tracing:
   enabled: true
 

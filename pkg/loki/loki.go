@@ -3,6 +3,7 @@ package loki
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"flag"
 	"fmt"
 	"net/http"
@@ -54,6 +55,11 @@ import (
 	"github.com/grafana/loki/pkg/validation"
 )
 
+var (
+	component = expvar.NewString("component")
+	purl      = expvar.NewString("profile_url_prefix")
+)
+
 // Config is the root config for Loki.
 type Config struct {
 	Target            flagext.StringSliceCSV `yaml:"target,omitempty"`
@@ -61,6 +67,7 @@ type Config struct {
 	HTTPPrefix        string                 `yaml:"http_prefix"`
 	BallastBytes      int                    `yaml:"ballast_bytes"`
 	InjectPprofLabels bool                   `yaml:"inject_pprof_labels,omitempty"`
+	ProfileURLPrefix  string                 `yaml:"profile_url_prefix,omitempty"`
 
 	Common           common.Config            `yaml:"common,omitempty"`
 	Server           server.Config            `yaml:"server,omitempty"`
@@ -265,6 +272,8 @@ func New(cfg Config) (*Loki, error) {
 		clientMetrics: chunk_storage.NewClientMetrics(),
 	}
 	usagestats.Edition("oss")
+	component.Set(loki.Cfg.Target[0])
+	purl.Set(cfg.ProfileURLPrefix)
 	loki.setupAuthMiddleware()
 	loki.setupGRPCRecoveryMiddleware()
 	if cfg.InjectPprofLabels {

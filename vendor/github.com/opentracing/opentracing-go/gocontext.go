@@ -2,6 +2,7 @@ package opentracing
 
 import (
 	"context"
+	"expvar"
 	"runtime/pprof"
 
 	"github.com/google/uuid"
@@ -66,12 +67,18 @@ func StartSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operatio
 		opts = append(opts, ChildOf(parentSpan.Context()))
 	}
 	id := uuid.New().String()
-	opts = append(opts, Tag{Key: "span_profile_id", Value: id})
+	opts = append(opts, Tag{Key: "span_profile_id", Value: id}, Tag{Key: "span_profile_url", Value: getProfileURL(id)})
 	span := tracer.StartSpan(operationName, opts...)
 	pprofSpan := &pprofLabelsSpan{Span: span}
 	pprof.SetGoroutineLabels(pprof.WithLabels(ctx, pprof.Labels("span_profile_id", id)))
 	pprofSpan.ctx = ContextWithSpan(ctx, pprofSpan)
 	return pprofSpan, pprofSpan.ctx
+}
+
+func getProfileURL(id string) string {
+	component := expvar.Get("component").(*expvar.String).Value()
+	purl := expvar.Get("profile_url_prefix").(*expvar.String).Value()
+	return purl + `?query=` + component + `.cpu%7Bspan_profile_id%3D%22` + id + `%22%7D`
 }
 
 type pprofLabelsSpan struct {
