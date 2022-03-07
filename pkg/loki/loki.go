@@ -49,16 +49,18 @@ import (
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/fakeauth"
 	util_log "github.com/grafana/loki/pkg/util/log"
+	"github.com/grafana/loki/pkg/util/pproflabels"
 	serverutil "github.com/grafana/loki/pkg/util/server"
 	"github.com/grafana/loki/pkg/validation"
 )
 
 // Config is the root config for Loki.
 type Config struct {
-	Target       flagext.StringSliceCSV `yaml:"target,omitempty"`
-	AuthEnabled  bool                   `yaml:"auth_enabled,omitempty"`
-	HTTPPrefix   string                 `yaml:"http_prefix"`
-	BallastBytes int                    `yaml:"ballast_bytes"`
+	Target            flagext.StringSliceCSV `yaml:"target,omitempty"`
+	AuthEnabled       bool                   `yaml:"auth_enabled,omitempty"`
+	HTTPPrefix        string                 `yaml:"http_prefix"`
+	BallastBytes      int                    `yaml:"ballast_bytes"`
+	InjectPprofLabels bool                   `yaml:"inject_pprof_labels,omitempty"`
 
 	Common           common.Config            `yaml:"common,omitempty"`
 	Server           server.Config            `yaml:"server,omitempty"`
@@ -265,6 +267,9 @@ func New(cfg Config) (*Loki, error) {
 	usagestats.Edition("oss")
 	loki.setupAuthMiddleware()
 	loki.setupGRPCRecoveryMiddleware()
+	if cfg.InjectPprofLabels {
+		loki.setupPprofLabelsMiddleware()
+	}
 	if err := loki.setupModuleManager(); err != nil {
 		return nil, err
 	}
@@ -292,6 +297,12 @@ func (t *Loki) setupAuthMiddleware() {
 func (t *Loki) setupGRPCRecoveryMiddleware() {
 	t.Cfg.Server.GRPCMiddleware = append(t.Cfg.Server.GRPCMiddleware, serverutil.RecoveryGRPCUnaryInterceptor)
 	t.Cfg.Server.GRPCStreamMiddleware = append(t.Cfg.Server.GRPCStreamMiddleware, serverutil.RecoveryGRPCStreamInterceptor)
+}
+
+func (t *Loki) setupPprofLabelsMiddleware() {
+	t.Cfg.Server.HTTPMiddleware = append(t.Cfg.Server.HTTPMiddleware, pproflabels.HTTPMiddleware())
+	t.Cfg.Server.GRPCMiddleware = append(t.Cfg.Server.GRPCMiddleware, pproflabels.GRPCMiddleware())
+	t.Cfg.Server.GRPCStreamMiddleware = append(t.Cfg.Server.GRPCStreamMiddleware, pproflabels.GRPCStreamMiddleware())
 }
 
 func newDefaultConfig() *Config {

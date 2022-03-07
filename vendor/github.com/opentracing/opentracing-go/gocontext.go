@@ -1,6 +1,11 @@
 package opentracing
 
-import "context"
+import (
+	"context"
+	"runtime/pprof"
+
+	"github.com/google/uuid"
+)
 
 type contextKey struct{}
 
@@ -60,6 +65,21 @@ func StartSpanFromContextWithTracer(ctx context.Context, tracer Tracer, operatio
 	if parentSpan := SpanFromContext(ctx); parentSpan != nil {
 		opts = append(opts, ChildOf(parentSpan.Context()))
 	}
+	id := uuid.New().String()
+	opts = append(opts, Tag{Key: "span_profile_id", Value: id})
 	span := tracer.StartSpan(operationName, opts...)
-	return span, ContextWithSpan(ctx, span)
+	pprofSpan := &pprofLabelsSpan{Span: span}
+	pprof.SetGoroutineLabels(pprof.WithLabels(ctx, pprof.Labels("span_profile_id", id)))
+	pprofSpan.ctx = ContextWithSpan(ctx, pprofSpan)
+	return pprofSpan, pprofSpan.ctx
+}
+
+type pprofLabelsSpan struct {
+	Span
+	ctx context.Context
+}
+
+func (s *pprofLabelsSpan) Finish() {
+	pprof.SetGoroutineLabels(pprof.WithLabels(s.ctx, pprof.Labels("span_profile_id", "")))
+	s.Span.Finish()
 }

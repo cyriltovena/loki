@@ -1,4 +1,7 @@
 auth_enabled: false
+inject_pprof_labels: true
+tracing:
+  enabled: true
 
 server:
   http_listen_port: 3100
