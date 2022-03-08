@@ -155,6 +155,10 @@ func CollectedRequest(ctx context.Context, method string, col Collector, toStatu
 	}
 	sp, newCtx := opentracing.StartSpanFromContext(ctx, method)
 	ext.SpanKindRPCClient.Set(sp)
+	traceID, ok := tracing.ExtractTraceID(ctx)
+	if ok {
+		sp.SetTag("profile_id", traceID)
+	}
 	if userID, err := user.ExtractUserID(ctx); err == nil {
 		sp.SetTag("user", userID)
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
+	"github.com/weaveworks/common/tracing"
 )
 
 // Dummy dependency to enforce that we have a nethttp version newer
@@ -35,6 +36,12 @@ func (t Tracer) Wrap(next http.Handler) http.Handler {
 			sp.SetTag("sourceIPs", t.SourceIPs.Get(r))
 		}))
 	}
+	options = append(options, nethttp.MWSpanObserver(func(sp opentracing.Span, r *http.Request) {
+		traceID, ok := tracing.ExtractTraceID(r.Context())
+		if ok {
+			sp.SetTag("profile_id", traceID)
+		}
+	}))
 
 	return nethttp.Middleware(opentracing.GlobalTracer(), next, options...)
 }
