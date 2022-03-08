@@ -28,6 +28,12 @@ func HTTPMiddleware() middleware.Interface {
 				r = r.WithContext(ctx)
 				handler.ServeHTTP(w, r)
 			})
+			if sp := opentracing.SpanFromContext(ctx); sp != nil {
+				traceID, ok := tracing.ExtractTraceID(r.Context())
+				if ok {
+					sp.SetTag("profile_id", traceID)
+				}
+			}
 		})
 	})
 }
@@ -44,6 +50,12 @@ func GRPCMiddleware() grpc.UnaryServerInterceptor {
 		pprof.Do(ctx, extractPprofLabels(ctx), func(ctx context.Context) {
 			resp, err = handler(ctx, req)
 		})
+		if sp := opentracing.SpanFromContext(ctx); sp != nil {
+			traceID, ok := tracing.ExtractTraceID(ctx)
+			if ok {
+				sp.SetTag("profile_id", traceID)
+			}
+		}
 		return
 	}
 }
@@ -61,6 +73,12 @@ func GRPCStreamMiddleware() grpc.StreamServerInterceptor {
 		pprof.Do(ctx, extractPprofLabels(ctx), func(ctx context.Context) {
 			err = handler(srv, ss)
 		})
+		if sp := opentracing.SpanFromContext(ctx); sp != nil {
+			traceID, ok := tracing.ExtractTraceID(ctx)
+			if ok {
+				sp.SetTag("profile_id", traceID)
+			}
+		}
 		return
 	}
 }
