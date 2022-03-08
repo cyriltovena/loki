@@ -48,7 +48,7 @@ func GRPCStreamMiddleware() grpc.StreamServerInterceptor {
 func extractPprofLabels(ctx context.Context) (labels pprof.LabelSet) {
 	traceID, _ := ExtractTraceID(ctx)
 	orgID, _ := user.ExtractOrgID(ctx)
-	return pprof.Labels("traceID", traceID, "tenant", orgID)
+	return pprof.Labels("profile_id", traceID, "tenant", orgID)
 }
 
 // ExtractTraceID extracts the trace id, if any from the context.
