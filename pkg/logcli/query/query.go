@@ -100,10 +100,13 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 			for ctx.Err() == nil {
 				resp, err := c.QueryRange(q.QueryString, q.BatchSize, start, q.End, d, q.Step, q.Interval, shardIndex, q.Quiet)
 				if err != nil {
+					log.Fatal(err)
 					return err
 				}
+				// todo check why only shard 3 and 9 has data.
 				e := lastEntry(resp)
 				if e.Timestamp.IsZero() {
+					fmt.Fprintf(os.Stderr, "no more logs for shard %d\n", shardIndex)
 					// no more logs
 					return nil
 				}
@@ -113,7 +116,7 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 			return nil
 		})
 	}
-
+	// streamsCount := map[string]int{}
 	g.Go(func() error {
 		defer cancel()
 		entries := []loghttp.Entry{}
@@ -129,6 +132,7 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 				}
 				lastEntries = append(lastEntries, lastEntry(result))
 				for _, s := range result.Data.Result.(loghttp.Streams) {
+					// streamsCount[fmt.Sprintf("%s shard: %d", s.Labels.String(), i)] += len(s.Entries)
 					entries = append(entries, s.Entries...)
 				}
 			}
@@ -146,7 +150,7 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 			if len(workerResult) == 0 {
 				break
 			}
-			if len(entries) == 0 {
+			if len(entries) == 0 || len(lastEntries) == 0 {
 				break
 			}
 			// we can only print the min of last entries.
@@ -173,7 +177,10 @@ func (q *Query) DoQuery(c client.Client, out output.LogOutput, statistics bool) 
 			entries = rest
 			lastEntries = lastEntries[:0]
 		}
-
+		// fmt.Fprintf(os.Stderr, "len streams %d", len(streamsCount))
+		// for c, s := range streamsCount {
+		// fmt.Fprintf(os.Stderr, "streams %s : entries:%d\n", c, s)
+		// }
 		return nil
 	})
 
