@@ -44,6 +44,13 @@ type Config struct {
 	// The tenant ID to use when pushing logs to Loki (empty string means
 	// single tenant mode)
 	TenantID string `yaml:"tenant_id"`
+
+	// todo: real struct
+	WAL struct {
+		Dir                string        `yaml:"dir"`
+		CheckpointDuration time.Duration `yaml:"checkpoint_duration"`
+		PerTenant          bool          `yaml:"per_tenant"`
+	} `yaml:"wal"`
 }
 
 // RegisterFlags with prefix registers flags where every name is prefixed by
