@@ -81,7 +81,7 @@ func (c metricsChunkClient) PutChunks(ctx context.Context, chunks []chunk.Chunk)
 	return nil
 }
 
-func (c metricsChunkClient) GetChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.Chunk, error) {
+func (c metricsChunkClient) GetChunks(ctx context.Context, chunks []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	chks, err := c.client.GetChunks(ctx, chunks)
 	if err != nil {
 		return chks, err

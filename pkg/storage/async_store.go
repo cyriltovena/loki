@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -39,16 +38,15 @@ func NewAsyncStore(store chunk.Store, scfg chunk.SchemaConfig, querier IngesterQ
 	}
 }
 
-func (a *AsyncStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*chunk.Fetcher, error) {
+func (a *AsyncStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]chunk.LazyChunk, error) {
 	spanLogger := spanlogger.FromContext(ctx)
 
 	errs := make(chan error)
 
-	var storeChunks [][]chunk.Chunk
-	var fetchers []*chunk.Fetcher
+	var storeChunks []chunk.LazyChunk
 	go func() {
 		var err error
-		storeChunks, fetchers, err = a.Store.GetChunkRefs(ctx, userID, from, through, matchers...)
+		storeChunks, err = a.Store.GetChunkRefs(ctx, userID, from, through, matchers...)
 		errs <- err
 	}()
 
@@ -77,60 +75,34 @@ func (a *AsyncStore) GetChunkRefs(ctx context.Context, userID string, from, thro
 	for i := 0; i < 2; i++ {
 		err := <-errs
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
 	if len(ingesterChunks) == 0 {
-		return storeChunks, fetchers, nil
+		return storeChunks, nil
 	}
 
-	return a.mergeIngesterAndStoreChunks(userID, storeChunks, fetchers, ingesterChunks)
+	return a.mergeIngesterAndStoreChunks(ctx, userID, storeChunks, ingesterChunks)
 }
 
-func (a *AsyncStore) mergeIngesterAndStoreChunks(userID string, storeChunks [][]chunk.Chunk, fetchers []*chunk.Fetcher, ingesterChunkIDs []string) ([][]chunk.Chunk, []*chunk.Fetcher, error) {
+func (a *AsyncStore) mergeIngesterAndStoreChunks(ctx context.Context, userID string, storeChunks []chunk.LazyChunk, ingesterChunkIDs []string) ([]chunk.LazyChunk, error) {
 	ingesterChunkIDs = filterDuplicateChunks(a.scfg, storeChunks, ingesterChunkIDs)
 	level.Debug(util_log.Logger).Log("msg", "post-filtering ingester chunks", "count", len(ingesterChunkIDs))
 
-	fetcherToChunksGroupIdx := make(map[*chunk.Fetcher]int, len(fetchers))
-
-	for i, fetcher := range fetchers {
-		fetcherToChunksGroupIdx[fetcher] = i
+	ingesterChunks, err := a.Store.LazyChunksForKeys(userID, ingesterChunkIDs)
+	if err != nil {
+		return nil, err
 	}
-
-	for _, chunkID := range ingesterChunkIDs {
-		chk, err := chunk.ParseExternalKey(userID, chunkID)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// ToDo(Sandeep) possible optimization: Keep the chunk fetcher reference handy after first call since it is expected to stay the same.
-		fetcher := a.Store.GetChunkFetcher(chk.Through)
-		if fetcher == nil {
-			return nil, nil, fmt.Errorf("got a nil fetcher for chunk %s", a.scfg.ExternalKey(chk))
-		}
-
-		if _, ok := fetcherToChunksGroupIdx[fetcher]; !ok {
-			fetchers = append(fetchers, fetcher)
-			storeChunks = append(storeChunks, []chunk.Chunk{})
-			fetcherToChunksGroupIdx[fetcher] = len(fetchers) - 1
-		}
-		chunksGroupIdx := fetcherToChunksGroupIdx[fetcher]
-
-		storeChunks[chunksGroupIdx] = append(storeChunks[chunksGroupIdx], chk)
-	}
-
-	return storeChunks, fetchers, nil
+	return append(storeChunks, ingesterChunks...), nil
 }
 
-func filterDuplicateChunks(scfg chunk.SchemaConfig, storeChunks [][]chunk.Chunk, ingesterChunkIDs []string) []string {
+func filterDuplicateChunks(scfg chunk.SchemaConfig, storeChunks []chunk.LazyChunk, ingesterChunkIDs []string) []string {
 	filteredChunkIDs := make([]string, 0, len(ingesterChunkIDs))
 	seen := make(map[string]struct{}, len(storeChunks))
 
 	for i := range storeChunks {
-		for j := range storeChunks[i] {
-			seen[scfg.ExternalKey(storeChunks[i][j])] = struct{}{}
-		}
+		seen[storeChunks[i].ExternalKey] = struct{}{}
 	}
 
 	for _, chunkID := range ingesterChunkIDs {

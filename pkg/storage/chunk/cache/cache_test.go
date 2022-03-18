@@ -66,12 +66,11 @@ func fillCache(t *testing.T, scfg chunk.SchemaConfig, cache cache.Cache) ([]stri
 				Through:     c.Through,
 				Checksum:    c.Checksum,
 			},
-			ChecksumSet: c.ChecksumSet,
 		}
 		err = cleanChunk.Decode(chunk.NewDecodeContext(), buf)
 		require.NoError(t, err)
 
-		keys = append(keys, scfg.ExternalKey(c))
+		keys = append(keys, scfg.ExternalKey(c.ChunkRef))
 		bufs = append(bufs, buf)
 		chunks = append(chunks, cleanChunk)
 	}
@@ -93,7 +92,8 @@ func testCacheSingle(t *testing.T, cache cache.Cache, keys []string, chunks []ch
 
 		c, err := chunk.ParseExternalKey(userID, found[0])
 		require.NoError(t, err)
-		err = c.Decode(chunk.NewDecodeContext(), bufs[0])
+		chk := chunk.NewChunkFromRef(c)
+		err = chk.Decode(chunk.NewDecodeContext(), bufs[0])
 		require.NoError(t, err)
 		require.Equal(t, chunks[index], c)
 	}
@@ -110,9 +110,10 @@ func testCacheMultiple(t *testing.T, cache cache.Cache, keys []string, chunks []
 	for i := range found {
 		c, err := chunk.ParseExternalKey(userID, found[i])
 		require.NoError(t, err)
-		err = c.Decode(chunk.NewDecodeContext(), bufs[i])
+		chk := chunk.NewChunkFromRef(c)
+		err = chk.Decode(chunk.NewDecodeContext(), bufs[i])
 		require.NoError(t, err)
-		result = append(result, c)
+		result = append(result, chk)
 	}
 	require.Equal(t, chunks, result)
 }
@@ -128,26 +129,27 @@ func testChunkFetcher(t *testing.T, c cache.Cache, keys []string, chunks []chunk
 		},
 	}
 
-	fetcher, err := chunk.NewChunkFetcher(c, false, s, nil, 10, 100)
+	fetcher, err := chunk.NewChunkFetcher(c, false, s.Configs[0], nil, 10, 100)
 	require.NoError(t, err)
 	defer fetcher.Stop()
+	refs := make([]chunk.LazyChunk, 0, len(keys))
+	for _, c := range chunks {
+		refs = append(refs, chunk.LazyChunk{
+			ChunkRef:    c.ChunkRef,
+			ExternalKey: s.Configs[0].ExternalKey(c.ChunkRef),
+		})
+	}
 
-	found, err := fetcher.FetchChunks(context.Background(), chunks, keys)
+	found, err := fetcher.FetchChunks(context.Background(), refs)
 	require.NoError(t, err)
-	sort.Sort(byExternalKey{found, s})
-	sort.Sort(byExternalKey{chunks, s})
+	sort.Slice(chunks, func(i, j int) bool {
+		return s.Configs[0].ExternalKey(chunks[i].ChunkRef) < s.Configs[0].ExternalKey(chunks[j].ChunkRef)
+	})
+	sort.Slice(found, func(i, j int) bool {
+		return s.Configs[0].ExternalKey(found[i].ChunkRef) < s.Configs[0].ExternalKey(found[j].ChunkRef)
+	})
+
 	require.Equal(t, chunks, found)
-}
-
-type byExternalKey struct {
-	chunks []chunk.Chunk
-	scfg   chunk.SchemaConfig
-}
-
-func (a byExternalKey) Len() int      { return len(a.chunks) }
-func (a byExternalKey) Swap(i, j int) { a.chunks[i], a.chunks[j] = a.chunks[j], a.chunks[i] }
-func (a byExternalKey) Less(i, j int) bool {
-	return a.scfg.ExternalKey(a.chunks[i]) < a.scfg.ExternalKey(a.chunks[j])
 }
 
 func testCacheMiss(t *testing.T, cache cache.Cache) {

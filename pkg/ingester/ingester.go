@@ -157,7 +157,7 @@ type ChunkStore interface {
 	Put(ctx context.Context, chunks []chunk.Chunk) error
 	SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error)
 	SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error)
-	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*chunk.Fetcher, error)
+	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]chunk.LazyChunk, error)
 	GetSchemaConfigs() []chunk.PeriodConfig
 }
 
@@ -684,22 +684,15 @@ func (i *Ingester) GetChunkIDs(ctx context.Context, req *logproto.GetChunkIDsReq
 	}
 
 	// get chunk references
-	chunksGroups, _, err := i.store.GetChunkRefs(ctx, orgID, start, end, matchers...)
+	refs, err := i.store.GetChunkRefs(ctx, orgID, start, end, matchers...)
 	if err != nil {
 		return nil, err
 	}
 
-	// todo (Callum) ingester should maybe store the whole schema config?
-	s := chunk.SchemaConfig{
-		Configs: i.periodicConfigs,
-	}
-
 	// build the response
 	resp := logproto.GetChunkIDsResponse{ChunkIDs: []string{}}
-	for _, chunks := range chunksGroups {
-		for _, chk := range chunks {
-			resp.ChunkIDs = append(resp.ChunkIDs, s.ExternalKey(chk))
-		}
+	for _, ref := range refs {
+		resp.ChunkIDs = append(resp.ChunkIDs, ref.ExternalKey)
 	}
 
 	return &resp, nil

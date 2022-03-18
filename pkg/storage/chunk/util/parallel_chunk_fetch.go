@@ -18,20 +18,20 @@ var decodeContextPool = sync.Pool{
 }
 
 // GetParallelChunks fetches chunks in parallel (up to maxParallel).
-func GetParallelChunks(ctx context.Context, maxParallel int, chunks []chunk.Chunk, f func(context.Context, *chunk.DecodeContext, chunk.Chunk) (chunk.Chunk, error)) ([]chunk.Chunk, error) {
+func GetParallelChunks(ctx context.Context, maxParallel int, refs []chunk.LazyChunk, f func(context.Context, *chunk.DecodeContext, chunk.Chunk, string) (chunk.Chunk, error)) ([]chunk.Chunk, error) {
 	log, ctx := spanlogger.New(ctx, "GetParallelChunks")
 	defer log.Finish()
-	log.LogFields(otlog.Int("requested", len(chunks)))
+	log.LogFields(otlog.Int("requested", len(refs)))
 
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
-	queuedChunks := make(chan chunk.Chunk)
+	queuedChunks := make(chan chunk.LazyChunk)
 
 	go func() {
-		for _, c := range chunks {
-			queuedChunks <- c
+		for _, r := range refs {
+			queuedChunks <- r
 		}
 		close(queuedChunks)
 	}()
@@ -39,11 +39,11 @@ func GetParallelChunks(ctx context.Context, maxParallel int, chunks []chunk.Chun
 	processedChunks := make(chan chunk.Chunk)
 	errors := make(chan error)
 
-	for i := 0; i < min(maxParallel, len(chunks)); i++ {
+	for i := 0; i < min(maxParallel, len(refs)); i++ {
 		go func() {
 			decodeContext := decodeContextPool.Get().(*chunk.DecodeContext)
 			for c := range queuedChunks {
-				c, err := f(ctx, decodeContext, c)
+				c, err := f(ctx, decodeContext, c.Chunk(), c.ExternalKey)
 				if err != nil {
 					errors <- err
 				} else {
@@ -54,9 +54,9 @@ func GetParallelChunks(ctx context.Context, maxParallel int, chunks []chunk.Chun
 		}()
 	}
 
-	result := make([]chunk.Chunk, 0, len(chunks))
+	result := make([]chunk.Chunk, 0, len(refs))
 	var lastErr error
-	for i := 0; i < len(chunks); i++ {
+	for i := 0; i < len(refs); i++ {
 		select {
 		case chunk := <-processedChunks:
 			result = append(result, chunk)

@@ -483,7 +483,7 @@ func (s *ObjectClient) PutChunks(ctx context.Context, chunks []chunk.Chunk) erro
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		key := s.schemaCfg.ExternalKey(chunks[i])
+		key := s.schemaCfg.ExternalKey(chunks[i].ChunkRef)
 		tableName, err := s.schemaCfg.ChunkTableFor(chunks[i].From)
 		if err != nil {
 			return err
@@ -501,11 +501,11 @@ func (s *ObjectClient) PutChunks(ctx context.Context, chunks []chunk.Chunk) erro
 }
 
 // GetChunks implements chunk.ObjectClient.
-func (s *ObjectClient) GetChunks(ctx context.Context, input []chunk.Chunk) ([]chunk.Chunk, error) {
+func (s *ObjectClient) GetChunks(ctx context.Context, input []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	return util.GetParallelChunks(ctx, s.maxGetParallel, input, s.getChunk)
 }
 
-func (s *ObjectClient) getChunk(ctx context.Context, decodeContext *chunk.DecodeContext, input chunk.Chunk) (chunk.Chunk, error) {
+func (s *ObjectClient) getChunk(ctx context.Context, decodeContext *chunk.DecodeContext, input chunk.Chunk, key string) (chunk.Chunk, error) {
 	if s.querySemaphore != nil {
 		if err := s.querySemaphore.Acquire(ctx, 1); err != nil {
 			return input, err
@@ -519,7 +519,7 @@ func (s *ObjectClient) getChunk(ctx context.Context, decodeContext *chunk.Decode
 	}
 
 	var buf []byte
-	if err := s.readSession.Query(fmt.Sprintf("SELECT value FROM %s WHERE hash = ?", tableName), s.schemaCfg.ExternalKey(input)).
+	if err := s.readSession.Query(fmt.Sprintf("SELECT value FROM %s WHERE hash = ?", tableName), key).
 		WithContext(ctx).Scan(&buf); err != nil {
 		return input, errors.WithStack(err)
 	}

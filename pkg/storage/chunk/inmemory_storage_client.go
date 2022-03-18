@@ -34,7 +34,7 @@ type MockStorage struct {
 	mtx       sync.RWMutex
 	tables    map[string]*mockTable
 	objects   map[string][]byte
-	schemaCfg SchemaConfig
+	periodCfg PeriodConfig
 
 	numIndexWrites int
 	numChunkWrites int
@@ -54,14 +54,10 @@ type mockItem struct {
 // NewMockStorage creates a new MockStorage.
 func NewMockStorage() *MockStorage {
 	return &MockStorage{
-		schemaCfg: SchemaConfig{
-			Configs: []PeriodConfig{
-				{
-					From:      DayTime{Time: 0},
-					Schema:    "v11",
-					RowShards: 16,
-				},
-			},
+		periodCfg: PeriodConfig{
+			From:      DayTime{Time: 0},
+			Schema:    "v11",
+			RowShards: 16,
 		},
 		tables:  map[string]*mockTable{},
 		objects: map[string][]byte{},
@@ -370,13 +366,13 @@ func (m *MockStorage) PutChunks(_ context.Context, chunks []Chunk) error {
 		if err != nil {
 			return err
 		}
-		m.objects[m.schemaCfg.ExternalKey(chunks[i])] = buf
+		m.objects[m.periodCfg.ExternalKey(chunks[i].ChunkRef)] = buf
 	}
 	return nil
 }
 
 // GetChunks implements StorageClient.
-func (m *MockStorage) GetChunks(ctx context.Context, chunkSet []Chunk) ([]Chunk, error) {
+func (m *MockStorage) GetChunks(ctx context.Context, refs []LazyChunk) ([]Chunk, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -386,12 +382,13 @@ func (m *MockStorage) GetChunks(ctx context.Context, chunkSet []Chunk) ([]Chunk,
 
 	decodeContext := NewDecodeContext()
 	result := []Chunk{}
-	for _, chunk := range chunkSet {
-		key := m.schemaCfg.ExternalKey(chunk)
+	for _, ref := range refs {
+		key := m.periodCfg.ExternalKey(ref.ChunkRef)
 		buf, ok := m.objects[key]
 		if !ok {
 			return nil, errStorageObjectNotFound
 		}
+		chunk := ref.Chunk()
 		if err := chunk.Decode(decodeContext, buf); err != nil {
 			return nil, err
 		}

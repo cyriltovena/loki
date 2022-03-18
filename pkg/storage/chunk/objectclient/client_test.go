@@ -44,7 +44,6 @@ func TestFSEncoder(t *testing.T) {
 			Fingerprint: uint64(456),
 			Checksum:    123,
 		},
-		ChecksumSet: true,
 	}
 
 	// chunk that resolves to v12
@@ -56,7 +55,6 @@ func TestFSEncoder(t *testing.T) {
 			Fingerprint: uint64(456),
 			Checksum:    123,
 		},
-		ChecksumSet: true,
 	}
 
 	for _, tc := range []struct {
@@ -66,19 +64,19 @@ func TestFSEncoder(t *testing.T) {
 	}{
 		{
 			desc: "before v12 encodes entire chunk",
-			from: schema.ExternalKey(oldChunk),
+			from: schema.ExternalKey(oldChunk.ChunkRef),
 			exp:  "ZmFrZS8xYzg6MTZmNjM4ZDQ0MDA6MTZmNjhiM2EwMDA6N2I=",
 		},
 		{
 			desc: "v12+ encodes encodes the non-directory trail",
-			from: schema.ExternalKey(newChunk),
+			from: schema.ExternalKey(newChunk.ChunkRef),
 			exp:  "fake/1c8/MTdlMTgxNWY4MDA6MTdlMWQzYzU0MDA6N2I=",
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			chk, err := chunk.ParseExternalKey("fake", tc.from)
+			ref, err := chunk.ParseExternalKey("fake", tc.from)
 			require.Nil(t, err)
-			require.Equal(t, tc.exp, FSEncoder(schema, chk))
+			require.Equal(t, tc.exp, FSEncoder(schema, chunk.NewChunkFromRef(ref)))
 		})
 	}
 }

@@ -42,9 +42,6 @@ type Chunk struct {
 
 	Metric labels.Labels `json:"metric"`
 
-	// For old chunks, ChecksumSet will be false.
-	ChecksumSet bool `json:"-"`
-
 	// We never use Delta encoding (the zero value), so if this entry is
 	// missing, we default to DoubleDelta.
 	Encoding prom_chunk.Encoding `json:"encoding"`
@@ -52,6 +49,16 @@ type Chunk struct {
 
 	// The encoded version of the chunk, held so we don't need to re-encode it
 	encoded []byte
+}
+
+type LazyChunk struct {
+	logproto.ChunkRef
+	ExternalKey string
+	fetcher     *Fetcher
+}
+
+func (lc LazyChunk) Chunk() Chunk {
+	return NewChunkFromRef(lc.ChunkRef)
 }
 
 // NewChunk creates a new chunk
@@ -69,15 +76,16 @@ func NewChunk(userID string, fp model.Fingerprint, metric labels.Labels, c prom_
 	}
 }
 
+func NewChunkFromRef(ref logproto.ChunkRef) Chunk {
+	return Chunk{
+		ChunkRef: ref,
+	}
+}
+
 // ParseExternalKey is used to construct a partially-populated chunk from the
 // key in DynamoDB.  This chunk can then be used to calculate the key needed
 // to fetch the Chunk data from Memcache/S3, and then fully populate the chunk
 // with decode().
-//
-// Pre-checksums, the keys written to DynamoDB looked like
-// `<fingerprint>:<start time>:<end time>` (aka the ID), and the key for
-// memcache and S3 was `<user id>/<fingerprint>:<start time>:<end time>.
-// Finger prints and times were written in base-10.
 //
 // Post-checksums, externals keys become the same across DynamoDB, Memcache
 // and S3.  Numbers become hex encoded.  Keys look like:
@@ -85,153 +93,116 @@ func NewChunk(userID string, fp model.Fingerprint, metric labels.Labels, c prom_
 //
 // v12+, fingerprint is now a prefix to support better read and write request parallelization:
 // `<user>/<fprint>/<start>:<end>:<checksum>`
-func ParseExternalKey(userID, externalKey string) (Chunk, error) {
-	if !strings.Contains(externalKey, "/") { // pre-checksum
-		return parseLegacyChunkID(userID, externalKey)
-	} else if strings.Count(externalKey, "/") == 2 { // v12+
+func ParseExternalKey(userID, externalKey string) (logproto.ChunkRef, error) {
+	if strings.Count(externalKey, "/") == 2 { // v12+
 		return parseNewerExternalKey(userID, externalKey)
-	} else { // post-checksum
-		return parseNewExternalKey(userID, externalKey)
 	}
-}
-
-// pre-checksum
-func parseLegacyChunkID(userID, key string) (Chunk, error) {
-	parts := strings.Split(key, ":")
-	if len(parts) != 3 {
-		return Chunk{}, errInvalidChunkID(key)
-	}
-	fingerprint, err := strconv.ParseUint(parts[0], 10, 64)
-	if err != nil {
-		return Chunk{}, err
-	}
-	from, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		return Chunk{}, err
-	}
-	through, err := strconv.ParseInt(parts[2], 10, 64)
-	if err != nil {
-		return Chunk{}, err
-	}
-	return Chunk{
-		ChunkRef: logproto.ChunkRef{
-			UserID:      userID,
-			Fingerprint: fingerprint,
-			From:        model.Time(from),
-			Through:     model.Time(through),
-		},
-	}, nil
+	return parseNewExternalKey(userID, externalKey)
 }
 
 // post-checksum
-func parseNewExternalKey(userID, key string) (Chunk, error) {
+func parseNewExternalKey(userID, key string) (logproto.ChunkRef, error) {
 	userIdx := strings.Index(key, "/")
 	if userIdx == -1 || userIdx+1 >= len(key) {
-		return Chunk{}, errInvalidChunkID(key)
+		return logproto.ChunkRef{}, errInvalidChunkID(key)
 	}
 	if userID != key[:userIdx] {
-		return Chunk{}, errors.WithStack(ErrWrongMetadata)
+		return logproto.ChunkRef{}, errors.WithStack(ErrWrongMetadata)
 	}
 	hexParts := key[userIdx+1:]
 	partsBytes := unsafeGetBytes(hexParts)
 	h0, i := readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errInvalidChunkID(key)
+		return logproto.ChunkRef{}, errInvalidChunkID(key)
 	}
 	fingerprint, err := strconv.ParseUint(unsafeGetString(h0), 16, 64)
 	if err != nil {
-		return Chunk{}, err
+		return logproto.ChunkRef{}, err
 	}
 	partsBytes = partsBytes[i+1:]
 	h1, i := readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errInvalidChunkID(key)
+		return logproto.ChunkRef{}, errInvalidChunkID(key)
 	}
 	from, err := strconv.ParseInt(unsafeGetString(h1), 16, 64)
 	if err != nil {
-		return Chunk{}, err
+		return logproto.ChunkRef{}, err
 	}
 	partsBytes = partsBytes[i+1:]
 	h2, i := readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errInvalidChunkID(key)
+		return logproto.ChunkRef{}, errInvalidChunkID(key)
 	}
 	through, err := strconv.ParseInt(unsafeGetString(h2), 16, 64)
 	if err != nil {
-		return Chunk{}, err
+		return logproto.ChunkRef{}, err
 	}
 	checksum, err := strconv.ParseUint(unsafeGetString(partsBytes[i+1:]), 16, 32)
 	if err != nil {
-		return Chunk{}, err
+		return logproto.ChunkRef{}, err
 	}
-	return Chunk{
-		ChunkRef: logproto.ChunkRef{
-			UserID:      userID,
-			Fingerprint: fingerprint,
-			From:        model.Time(from),
-			Through:     model.Time(through),
-			Checksum:    uint32(checksum),
-		},
-		ChecksumSet: true,
+	return logproto.ChunkRef{
+		UserID:      userID,
+		Fingerprint: fingerprint,
+		From:        model.Time(from),
+		Through:     model.Time(through),
+		Checksum:    uint32(checksum),
 	}, nil
 }
 
 // v12+
-func parseNewerExternalKey(userID, key string) (Chunk, error) {
+func parseNewerExternalKey(userID, key string) (logproto.ChunkRef, error) {
 	// Parse user
 	userIdx := strings.Index(key, "/")
 	if userIdx == -1 || userIdx+1 >= len(key) {
-		return Chunk{}, errInvalidChunkID(key)
+		return logproto.ChunkRef{}, errInvalidChunkID(key)
 	}
 	if userID != key[:userIdx] {
-		return Chunk{}, errors.WithStack(ErrWrongMetadata)
+		return logproto.ChunkRef{}, errors.WithStack(ErrWrongMetadata)
 	}
 	hexParts := key[userIdx+1:]
 	partsBytes := unsafeGetBytes(hexParts)
 	// Parse fingerprint
 	h, i := readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errors.Wrap(errInvalidChunkID(key), "decoding fingerprint")
+		return logproto.ChunkRef{}, errors.Wrap(errInvalidChunkID(key), "decoding fingerprint")
 	}
 	fingerprint, err := strconv.ParseUint(unsafeGetString(h), 16, 64)
 	if err != nil {
-		return Chunk{}, errors.Wrap(err, "parsing fingerprint")
+		return logproto.ChunkRef{}, errors.Wrap(err, "parsing fingerprint")
 	}
 	partsBytes = partsBytes[i+1:]
 	// Parse start
 	h, i = readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errors.Wrap(errInvalidChunkID(key), "decoding start")
+		return logproto.ChunkRef{}, errors.Wrap(errInvalidChunkID(key), "decoding start")
 	}
 	from, err := strconv.ParseInt(unsafeGetString(h), 16, 64)
 	if err != nil {
-		return Chunk{}, errors.Wrap(err, "parsing start")
+		return logproto.ChunkRef{}, errors.Wrap(err, "parsing start")
 	}
 	partsBytes = partsBytes[i+1:]
 	// Parse through
 	h, i = readOneHexPart(partsBytes)
 	if i == 0 || i+1 >= len(partsBytes) {
-		return Chunk{}, errors.Wrap(errInvalidChunkID(key), "decoding through")
+		return logproto.ChunkRef{}, errors.Wrap(errInvalidChunkID(key), "decoding through")
 	}
 	through, err := strconv.ParseInt(unsafeGetString(h), 16, 64)
 	if err != nil {
-		return Chunk{}, errors.Wrap(err, "parsing through")
+		return logproto.ChunkRef{}, errors.Wrap(err, "parsing through")
 	}
 	partsBytes = partsBytes[i+1:]
 	// Parse checksum
 	checksum, err := strconv.ParseUint(unsafeGetString(partsBytes), 16, 64)
 	if err != nil {
-		return Chunk{}, errors.Wrap(err, "parsing checksum")
+		return logproto.ChunkRef{}, errors.Wrap(err, "parsing checksum")
 	}
-	return Chunk{
-		ChunkRef: logproto.ChunkRef{
-			UserID:      userID,
-			Fingerprint: fingerprint,
-			From:        model.Time(from),
-			Through:     model.Time(through),
-			Checksum:    uint32(checksum),
-		},
-		ChecksumSet: true,
+	return logproto.ChunkRef{
+		UserID:      userID,
+		Fingerprint: fingerprint,
+		From:        model.Time(from),
+		Through:     model.Time(through),
+		Checksum:    uint32(checksum),
 	}, nil
 }
 
@@ -260,6 +231,15 @@ func unsafeGetString(buf []byte) string {
 
 var writerPool = sync.Pool{
 	New: func() interface{} { return snappy.NewBufferedWriter(nil) },
+}
+
+func (c *Chunk) Matches(matchers ...*labels.Matcher) bool {
+	for _, matcher := range matchers {
+		if !matcher.Matches(c.Metric.Get(matcher.Name)) {
+			return false
+		}
+	}
+	return true
 }
 
 // Encode writes the chunk into a buffer, and calculates the checksum.
@@ -311,7 +291,6 @@ func (c *Chunk) EncodeTo(buf *bytes.Buffer) error {
 
 	// Now work out the checksum
 	c.encoded = buf.Bytes()
-	c.ChecksumSet = true
 	c.Checksum = crc32.Checksum(c.encoded, castagnoliTable)
 	return nil
 }
@@ -343,7 +322,7 @@ func NewDecodeContext() *DecodeContext {
 func (c *Chunk) Decode(decodeContext *DecodeContext, input []byte) error {
 	// First, calculate the checksum of the chunk and confirm it matches
 	// what we expected.
-	if c.ChecksumSet && c.Checksum != crc32.Checksum(input, castagnoliTable) {
+	if c.Checksum != crc32.Checksum(input, castagnoliTable) {
 		return errors.WithStack(ErrInvalidChecksum)
 	}
 
@@ -369,12 +348,12 @@ func (c *Chunk) Decode(decodeContext *DecodeContext, input []byte) error {
 	// Next, confirm the chunks matches what we expected.  Easiest way to do this
 	// is to compare what the decoded data thinks its external ID would be, but
 	// we don't write the checksum to s3, so we have to copy the checksum in.
-	if c.ChecksumSet {
-		tempMetadata.Checksum, tempMetadata.ChecksumSet = c.Checksum, c.ChecksumSet
-		if !equalByKey(*c, tempMetadata) {
-			return errors.WithStack(ErrWrongMetadata)
-		}
+
+	tempMetadata.Checksum = c.Checksum
+	if !equalByKey(*c, tempMetadata) {
+		return errors.WithStack(ErrWrongMetadata)
 	}
+
 	*c = tempMetadata
 
 	// Older chunks always used DoubleDelta and did not write Encoding

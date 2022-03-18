@@ -25,9 +25,14 @@ func newStoreMock() *storeMock {
 	return &storeMock{}
 }
 
-func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*chunk.Fetcher, error) {
+func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]chunk.LazyChunk, error) {
 	args := s.Called(ctx, userID, from, through, matchers)
-	return args.Get(0).([][]chunk.Chunk), args.Get(1).([]*chunk.Fetcher), args.Error(2)
+	return args.Get(0).([]chunk.LazyChunk), args.Error(1)
+}
+
+func (s *storeMock) FetchChunks(ctx context.Context, refs []chunk.LazyChunk) ([]chunk.Chunk, error) {
+	args := s.Called(ctx, refs)
+	return args.Get(0).([]chunk.Chunk), args.Error(1)
 }
 
 func (s *storeMock) GetChunkFetcher(tm model.Time) *chunk.Fetcher {
@@ -53,26 +58,13 @@ func buildMockChunkRef(t *testing.T, num int) []chunk.Chunk {
 	now := time.Now()
 	var chunks []chunk.Chunk
 
-	s := chunk.SchemaConfig{
-		Configs: []chunk.PeriodConfig{
-			{
-				From:      chunk.DayTime{Time: 0},
-				Schema:    "v11",
-				RowShards: 16,
-			},
-		},
-	}
-
 	for i := 0; i < num; i++ {
 		chk := newChunk(buildTestStreams(fooLabelsWithName, timeRange{
 			from: now.Add(time.Duration(i) * time.Minute),
 			to:   now.Add(time.Duration(i+1) * time.Minute),
 		}))
 
-		chunkRef, err := chunk.ParseExternalKey(chk.UserID, s.ExternalKey(chk))
-		require.NoError(t, err)
-
-		chunks = append(chunks, chunkRef)
+		chunks = append(chunks, chk)
 	}
 
 	return chunks
@@ -211,7 +203,7 @@ func TestAsyncStore_mergeIngesterAndStoreChunks(t *testing.T) {
 
 			asyncStore := NewAsyncStore(store, chunk.SchemaConfig{}, ingesterQuerier, 0)
 
-			chunks, fetchers, err := asyncStore.GetChunkRefs(context.Background(), "fake", model.Now(), model.Now(), nil)
+			chunks, err := asyncStore.GetChunkRefs(context.Background(), "fake", model.Now(), model.Now(), nil)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectedChunks, chunks)
@@ -268,7 +260,7 @@ func TestAsyncStore_QueryIngestersWithin(t *testing.T) {
 
 			asyncStore := NewAsyncStore(store, chunk.SchemaConfig{}, ingesterQuerier, tc.queryIngestersWithin)
 
-			_, _, err := asyncStore.GetChunkRefs(context.Background(), "fake", tc.queryFrom, tc.queryThrough, nil)
+			_, err := asyncStore.GetChunkRefs(context.Background(), "fake", tc.queryFrom, tc.queryThrough, nil)
 			require.NoError(t, err)
 
 			expectedNumCalls := 0
@@ -283,7 +275,7 @@ func TestAsyncStore_QueryIngestersWithin(t *testing.T) {
 func convertChunksToChunkIDs(s chunk.SchemaConfig, chunks []chunk.Chunk) []string {
 	var chunkIDs []string
 	for _, chk := range chunks {
-		chunkIDs = append(chunkIDs, s.ExternalKey(chk))
+		chunkIDs = append(chunkIDs, s.ExternalKey(chk.ChunkRef))
 	}
 
 	return chunkIDs

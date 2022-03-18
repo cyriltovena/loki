@@ -208,7 +208,7 @@ func (s *store) SetChunkFilterer(chunkFilterer RequestChunkFilterer) {
 }
 
 // lazyChunks is an internal function used to resolve a set of lazy chunks from the store without actually loading them. It's used internally by `LazyQuery` and `GetSeries`
-func (s *store) lazyChunks(ctx context.Context, matchers []*labels.Matcher, from, through model.Time) ([]*LazyChunk, error) {
+func (s *store) lazyChunks(ctx context.Context, matchers []*labels.Matcher, from, through model.Time) ([]chunk.LazyChunk, error) {
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -216,31 +216,13 @@ func (s *store) lazyChunks(ctx context.Context, matchers []*labels.Matcher, from
 
 	stats := stats.FromContext(ctx)
 
-	chks, fetchers, err := s.GetChunkRefs(ctx, userID, from, through, matchers...)
+	chks, err := s.GetChunkRefs(ctx, userID, from, through, matchers...)
 	if err != nil {
 		return nil, err
 	}
-
-	var prefiltered int
-	var filtered int
-	for i := range chks {
-		prefiltered += len(chks[i])
-		stats.AddChunksRef(int64(len(chks[i])))
-		chks[i] = filterChunksByTime(from, through, chks[i])
-		filtered += len(chks[i])
-	}
-
-	s.chunkMetrics.refs.WithLabelValues(statusDiscarded).Add(float64(prefiltered - filtered))
-	s.chunkMetrics.refs.WithLabelValues(statusMatched).Add(float64(filtered))
-
-	// creates lazychunks with chunks ref.
-	lazyChunks := make([]*LazyChunk, 0, filtered)
-	for i := range chks {
-		for _, c := range chks[i] {
-			lazyChunks = append(lazyChunks, &LazyChunk{Chunk: c, Fetcher: fetchers[i]})
-		}
-	}
-	return lazyChunks, nil
+	stats.AddChunksRef(int64(len(chks)))
+	s.chunkMetrics.refs.WithLabelValues(statusMatched).Add(float64(len(chks)))
+	return chks, nil
 }
 
 func (s *store) GetSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error) {
@@ -276,7 +258,7 @@ func (s *store) GetSeries(ctx context.Context, req logql.SelectLogParams) ([]log
 	// group chunks by series
 	chunksBySeries := partitionBySeriesChunks(lazyChunks)
 
-	firstChunksPerSeries := make([]*LazyChunk, 0, len(chunksBySeries))
+	firstChunksPerSeries := make([]chunk.LazyChunk, 0, len(chunksBySeries))
 
 	// discard all but one chunk per series
 	for _, chks := range chunksBySeries {
@@ -286,7 +268,7 @@ func (s *store) GetSeries(ctx context.Context, req logql.SelectLogParams) ([]log
 	results := make(logproto.SeriesIdentifiers, 0, len(firstChunksPerSeries))
 
 	// bound concurrency
-	groups := make([][]*LazyChunk, 0, len(firstChunksPerSeries)/s.cfg.MaxChunkBatchSize+1)
+	groups := make([][]chunk.LazyChunk, 0, len(firstChunksPerSeries)/s.cfg.MaxChunkBatchSize+1)
 
 	split := s.cfg.MaxChunkBatchSize
 	if len(firstChunksPerSeries) < split {
@@ -307,27 +289,27 @@ func (s *store) GetSeries(ctx context.Context, req logql.SelectLogParams) ([]log
 	}
 
 	for _, group := range groups {
-		err = fetchLazyChunks(ctx, s.schemaCfg.SchemaConfig, group)
+		chunks, err := fetchLazyChunks(ctx, s, group)
 		if err != nil {
 			return nil, err
 		}
 
 	outer:
-		for _, chk := range group {
+		for _, chk := range chunks {
 			for _, matcher := range matchers {
 				if matcher.Name == astmapper.ShardLabel || matcher.Name == labels.MetricName {
 					continue
 				}
-				if !matcher.Matches(chk.Chunk.Metric.Get(matcher.Name)) {
+				if !matcher.Matches(chk.Metric.Get(matcher.Name)) {
 					continue outer
 				}
 			}
 
-			if chunkFilterer != nil && chunkFilterer.ShouldFilter(chk.Chunk.Metric) {
+			if chunkFilterer != nil && chunkFilterer.ShouldFilter(chk.Metric) {
 				continue outer
 			}
 
-			m := chk.Chunk.Metric.Map()
+			m := chk.Metric.Map()
 			delete(m, labels.MetricName)
 			results = append(results, logproto.SeriesIdentifier{
 				Labels: m,

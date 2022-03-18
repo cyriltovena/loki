@@ -148,7 +148,7 @@ func entryFromChunk(s chunk.SchemaConfig, c chunk.Chunk) ChunkEntry {
 		ChunkRef: ChunkRef{
 			UserID:   []byte(c.UserID),
 			SeriesID: labelsSeriesID(c.Metric),
-			ChunkID:  []byte(s.ExternalKey(c)),
+			ChunkID:  []byte(s.ExternalKey(c.ChunkRef)),
 			From:     c.From,
 			Through:  c.Through,
 		},

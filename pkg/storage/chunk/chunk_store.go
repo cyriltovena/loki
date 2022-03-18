@@ -83,10 +83,8 @@ func (cfg *StoreConfig) Validate(logger log.Logger) error {
 }
 
 type baseStore struct {
-	cfg StoreConfig
-	// todo (callum) it looks like baseStore is created off a specific schema struct implementation, so perhaps we can store something else here
-	// other than the entire set of schema period configs
-	schemaCfg SchemaConfig
+	cfg       StoreConfig
+	periodCfg PeriodConfig
 
 	index   IndexClient
 	chunks  Client
@@ -95,15 +93,15 @@ type baseStore struct {
 	fetcher *Fetcher
 }
 
-func newBaseStore(cfg StoreConfig, scfg SchemaConfig, schema BaseSchema, index IndexClient, chunks Client, limits StoreLimits, chunksCache cache.Cache) (baseStore, error) {
-	fetcher, err := NewChunkFetcher(chunksCache, cfg.chunkCacheStubs, scfg, chunks, cfg.ChunkCacheConfig.AsyncCacheWriteBackConcurrency, cfg.ChunkCacheConfig.AsyncCacheWriteBackBufferSize)
+func newBaseStore(cfg StoreConfig, pcfg PeriodConfig, schema BaseSchema, index IndexClient, chunks Client, limits StoreLimits, chunksCache cache.Cache) (baseStore, error) {
+	fetcher, err := NewChunkFetcher(chunksCache, cfg.chunkCacheStubs, pcfg, chunks, cfg.ChunkCacheConfig.AsyncCacheWriteBackConcurrency, cfg.ChunkCacheConfig.AsyncCacheWriteBackBufferSize)
 	if err != nil {
 		return baseStore{}, err
 	}
 
 	return baseStore{
 		cfg:       cfg,
-		schemaCfg: scfg,
+		periodCfg: pcfg,
 		index:     index,
 		chunks:    chunks,
 		schema:    schema,
@@ -335,17 +333,21 @@ func (c *baseStore) parseIndexEntries(_ context.Context, entries []IndexEntry, m
 	return result, nil
 }
 
-func (c *baseStore) convertChunkIDsToChunks(_ context.Context, userID string, chunkIDs []string) ([]Chunk, error) {
-	chunkSet := make([]Chunk, 0, len(chunkIDs))
+func (c *baseStore) convertChunkIDsToRefs(_ context.Context, userID string, chunkIDs []string) ([]LazyChunk, error) {
+	refs := make([]LazyChunk, 0, len(chunkIDs))
 	for _, chunkID := range chunkIDs {
-		chunk, err := ParseExternalKey(userID, chunkID)
+		ref, err := ParseExternalKey(userID, chunkID)
 		if err != nil {
 			return nil, err
 		}
-		chunkSet = append(chunkSet, chunk)
+		refs = append(refs, LazyChunk{
+			ChunkRef:    ref,
+			fetcher:     c.fetcher,
+			ExternalKey: chunkID,
+		})
 	}
 
-	return chunkSet, nil
+	return refs, nil
 }
 
 func (c *baseStore) GetChunkFetcher(_ model.Time) *Fetcher {

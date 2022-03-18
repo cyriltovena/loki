@@ -672,83 +672,19 @@ outer:
 	return chks
 }
 
-func fetchLazyChunks(ctx context.Context, s chunk.SchemaConfig, chunks []*LazyChunk) error {
+func fetchLazyChunks(ctx context.Context, store Store, refs []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	var (
-		totalChunks int64
-		start       = time.Now()
-		stats       = stats.FromContext(ctx)
-		logger      = util_log.WithContext(ctx, util_log.Logger)
+		start  = time.Now()
+		stats  = stats.FromContext(ctx)
+		logger = util_log.WithContext(ctx, util_log.Logger)
 	)
 	defer func() {
 		stats.AddChunksDownloadTime(time.Since(start))
-		stats.AddChunksDownloaded(totalChunks)
+		stats.AddChunksDownloaded(int64(len(refs)))
 	}()
 
-	chksByFetcher := map[*chunk.Fetcher][]*LazyChunk{}
-	for _, c := range chunks {
-		if c.Chunk.Data == nil {
-			chksByFetcher[c.Fetcher] = append(chksByFetcher[c.Fetcher], c)
-			totalChunks++
-		}
-	}
-	if len(chksByFetcher) == 0 {
-		return nil
-	}
-	level.Debug(logger).Log("msg", "loading lazy chunks", "chunks", totalChunks)
-
-	errChan := make(chan error)
-	for fetcher, chunks := range chksByFetcher {
-		go func(fetcher *chunk.Fetcher, chunks []*LazyChunk) {
-			keys := make([]string, 0, len(chunks))
-			chks := make([]chunk.Chunk, 0, len(chunks))
-			index := make(map[string]*LazyChunk, len(chunks))
-
-			// FetchChunks requires chunks to be ordered by external key.
-			sort.Slice(chunks, func(i, j int) bool { return s.ExternalKey(chunks[i].Chunk) < s.ExternalKey(chunks[j].Chunk) })
-			for _, chk := range chunks {
-				key := s.ExternalKey(chk.Chunk)
-				keys = append(keys, key)
-				chks = append(chks, chk.Chunk)
-				index[key] = chk
-			}
-			chks, err := fetcher.FetchChunks(ctx, chks, keys)
-			if err != nil {
-				level.Error(logger).Log("msg", "error fetching chunks", "err", err)
-				if isInvalidChunkError(err) {
-					level.Error(logger).Log("msg", "checksum of chunks does not match", "err", chunk.ErrInvalidChecksum)
-					errChan <- nil
-					return
-				}
-				errChan <- err
-				return
-
-			}
-			// assign fetched chunk by key as FetchChunks doesn't guarantee the order.
-			for _, chk := range chks {
-				index[s.ExternalKey(chk)].Chunk = chk
-			}
-
-			errChan <- nil
-		}(fetcher, chunks)
-	}
-
-	var lastErr error
-	for i := 0; i < len(chksByFetcher); i++ {
-		if err := <-errChan; err != nil {
-			lastErr = err
-		}
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-
-	for _, c := range chunks {
-		if c.Chunk.Data != nil {
-			c.IsValid = true
-		}
-	}
-	return nil
+	level.Debug(logger).Log("msg", "loading lazy chunks", "chunks", refs)
+	return store.FetchChunks(ctx, refs)
 }
 
 func isInvalidChunkError(err error) bool {
@@ -772,13 +708,13 @@ func loadFirstChunks(ctx context.Context, s chunk.SchemaConfig, chks map[model.F
 	return fetchLazyChunks(ctx, s, toLoad)
 }
 
-func partitionBySeriesChunks(chunks []*LazyChunk) map[model.Fingerprint][][]*LazyChunk {
-	chunksByFp := map[model.Fingerprint][]*LazyChunk{}
+func partitionBySeriesChunks(chunks []chunk.LazyChunk) map[model.Fingerprint][][]chunk.LazyChunk {
+	chunksByFp := map[model.Fingerprint][]chunk.LazyChunk{}
 	for _, c := range chunks {
-		fp := c.Chunk.FingerprintModel()
+		fp := c.ChunkRef.FingerprintModel()
 		chunksByFp[fp] = append(chunksByFp[fp], c)
 	}
-	result := make(map[model.Fingerprint][][]*LazyChunk, len(chunksByFp))
+	result := make(map[model.Fingerprint][][]chunk.LazyChunk, len(chunksByFp))
 
 	for fp, chks := range chunksByFp {
 		result[fp] = partitionOverlappingChunks(chks)
@@ -789,23 +725,23 @@ func partitionBySeriesChunks(chunks []*LazyChunk) map[model.Fingerprint][][]*Laz
 
 // partitionOverlappingChunks splits the list of chunks into different non-overlapping lists.
 // todo this might reverse the order.
-func partitionOverlappingChunks(chunks []*LazyChunk) [][]*LazyChunk {
+func partitionOverlappingChunks(chunks []chunk.LazyChunk) [][]chunk.LazyChunk {
 	sort.Slice(chunks, func(i, j int) bool {
-		return chunks[i].Chunk.From < chunks[j].Chunk.From
+		return chunks[i].ChunkRef.From < chunks[j].ChunkRef.From
 	})
 
-	css := [][]*LazyChunk{}
+	css := [][]chunk.LazyChunk{}
 outer:
 	for _, c := range chunks {
 		for i, cs := range css {
 			// If the chunk doesn't overlap with the current list, then add it to it.
-			if cs[len(cs)-1].Chunk.Through.Before(c.Chunk.From) {
+			if cs[len(cs)-1].ChunkRef.Through.Before(c.ChunkRef.From) {
 				css[i] = append(css[i], c)
 				continue outer
 			}
 		}
 		// If the chunk overlaps with every existing list, then create a new list.
-		cs := make([]*LazyChunk, 0, len(chunks)/(len(css)+1))
+		cs := make([]chunk.LazyChunk, 0, len(chunks)/(len(css)+1))
 		cs = append(cs, c)
 		css = append(css, cs)
 	}

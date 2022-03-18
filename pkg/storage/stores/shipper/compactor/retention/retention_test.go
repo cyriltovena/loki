@@ -168,7 +168,7 @@ func Test_Retention(t *testing.T) {
 			for i, e := range tt.alive {
 				require.Equal(t, e, store.HasChunk(tt.chunks[i]), "chunk %d should be %t", i, e)
 				if !e {
-					expectDeleted = append(expectDeleted, store.schemaCfg.ExternalKey(tt.chunks[i]))
+					expectDeleted = append(expectDeleted, store.schemaCfg.ExternalKey(tt.chunks[i].ChunkRef))
 				}
 			}
 			sort.Strings(expectDeleted)
@@ -420,7 +420,7 @@ func TestChunkRewriter(t *testing.T) {
 			for _, interval := range tt.rewriteIntervals {
 				expectedChk := createChunk(t, tt.chunk.UserID, labels.Labels{labels.Label{Name: "foo", Value: "bar"}}, interval.Start, interval.End)
 				for i, chk := range chunks {
-					if store.schemaCfg.ExternalKey(chk) == store.schemaCfg.ExternalKey(expectedChk) {
+					if store.schemaCfg.ExternalKey(chk.ChunkRef) == store.schemaCfg.ExternalKey(expectedChk.ChunkRef) {
 						chunks = append(chunks[:i], chunks[i+1:]...)
 						break
 					}
@@ -429,7 +429,7 @@ func TestChunkRewriter(t *testing.T) {
 
 			// the source chunk should still be there in the store
 			require.Len(t, chunks, 1)
-			require.Equal(t, store.schemaCfg.ExternalKey(tt.chunk), store.schemaCfg.ExternalKey(chunks[0]))
+			require.Equal(t, store.schemaCfg.ExternalKey(tt.chunk.ChunkRef), store.schemaCfg.ExternalKey(chunks[0].ChunkRef))
 			store.Stop()
 		})
 	}
@@ -659,7 +659,7 @@ func TestMarkForDelete_SeriesCleanup(t *testing.T) {
 			require.NoError(t, store.Put(context.TODO(), tc.chunks))
 			chunksExpiry := map[string]chunkExpiry{}
 			for i, chunk := range tc.chunks {
-				chunksExpiry[store.schemaCfg.ExternalKey(chunk)] = tc.expiry[i]
+				chunksExpiry[store.schemaCfg.ExternalKey(chunk.ChunkRef)] = tc.expiry[i]
 			}
 
 			expirationChecker := newMockExpirationChecker(chunksExpiry)

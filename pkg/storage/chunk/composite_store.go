@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/loki/pkg/storage/chunk/cache"
 )
@@ -28,7 +29,10 @@ type Store interface {
 	PutOne(ctx context.Context, from, through model.Time, chunk Chunk) error
 	// GetChunkRefs returns the un-loaded chunks and the fetchers to be used to load them. You can load each slice of chunks ([]Chunk),
 	// using the corresponding Fetcher (fetchers[i].FetchChunks(ctx, chunks[i], ...)
-	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]Chunk, []*Fetcher, error)
+	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]LazyChunk, error)
+	FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error)
+	LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error)
+
 	LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error)
 	LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error)
 	GetChunkFetcher(tm model.Time) *Fetcher
@@ -50,6 +54,7 @@ type compositeStore struct {
 type compositeStoreEntry struct {
 	start model.Time
 	Store
+	// SchemaConfig
 }
 
 // NewCompositeStore creates a new Store which delegates to different stores depending
@@ -65,10 +70,10 @@ func (c *CompositeStore) AddPeriod(storeCfg StoreConfig, cfg PeriodConfig, index
 		return err
 	}
 
-	return c.addSchema(storeCfg, SchemaConfig{Configs: []PeriodConfig{cfg}}, schema, cfg.From.Time, index, chunks, limits, chunksCache, writeDedupeCache)
+	return c.addSchema(storeCfg, cfg, schema, cfg.From.Time, index, chunks, limits, chunksCache, writeDedupeCache)
 }
 
-func (c *CompositeStore) addSchema(storeCfg StoreConfig, schemaCfg SchemaConfig, schema BaseSchema, start model.Time, index IndexClient, chunks Client, limits StoreLimits, chunksCache, writeDedupeCache cache.Cache) error {
+func (c *CompositeStore) addSchema(storeCfg StoreConfig, cfg PeriodConfig, schema BaseSchema, start model.Time, index IndexClient, chunks Client, limits StoreLimits, chunksCache, writeDedupeCache cache.Cache) error {
 	var (
 		err   error
 		store Store
@@ -76,7 +81,7 @@ func (c *CompositeStore) addSchema(storeCfg StoreConfig, schemaCfg SchemaConfig,
 
 	switch s := schema.(type) {
 	case SeriesStoreSchema:
-		store, err = newSeriesStore(storeCfg, schemaCfg, s, index, chunks, limits, chunksCache, writeDedupeCache)
+		store, err = newSeriesStore(storeCfg, cfg, s, index, chunks, limits, chunksCache, writeDedupeCache)
 	default:
 		err = errors.New("invalid schema type")
 	}
@@ -103,6 +108,98 @@ func (c compositeStore) PutOne(ctx context.Context, from, through model.Time, ch
 	return c.forStores(ctx, chunk.UserID, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
 		return store.PutOne(innerCtx, from, through, chunk)
 	})
+}
+
+func (c compositeStore) FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error) {
+	if len(chks) == 0 {
+		return nil, nil
+	}
+	// first sort chunks by fetchers
+	sort.Slice(chks, func(i, j int) bool {
+		return chks[i].fetcher.pcfg.From.Time < chks[j].fetcher.pcfg.From.Time
+	})
+	// then map chunks to fetchers
+	chunkByFetchers := make(map[*Fetcher]*struct {
+		refs   []LazyChunk
+		result []Chunk
+	})
+	currentFetcher := chks[0].fetcher
+	currentFetcherIndex := 0
+	for i, chk := range chks {
+		if chk.fetcher != currentFetcher {
+			chunkByFetchers[currentFetcher] = &struct {
+				refs   []LazyChunk
+				result []Chunk
+			}{
+				refs: chks[currentFetcherIndex:i],
+			}
+			currentFetcher = chk.fetcher
+			currentFetcherIndex = i
+		}
+	}
+	chunkByFetchers[currentFetcher] = &struct {
+		refs   []LazyChunk
+		result []Chunk
+	}{
+		refs: chks[currentFetcherIndex:],
+	}
+	// fetch chunks from fetchers
+	g, ctx := errgroup.WithContext(ctx)
+	for fetcher, refs := range chunkByFetchers {
+		fetcher := fetcher
+		refs := refs
+		g.Go(func() error {
+			chks, err := fetcher.FetchChunks(ctx, refs.refs)
+			if err != nil {
+				return err
+			}
+			chunkByFetchers[fetcher].result = chks
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	result := make([]Chunk, 0, len(chks))
+	for _, refs := range chunkByFetchers {
+		result = append(result, refs.result...)
+	}
+	return result, nil
+}
+
+func (c compositeStore) LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	result := make([]LazyChunk, len(keys))
+	for i, key := range keys {
+		ref, err := ParseExternalKey(userID, key)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = LazyChunk{
+			ExternalKey: key,
+			ChunkRef:    ref,
+		}
+	}
+	// sort in increasing order of time like stores
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ChunkRef.From < result[j].ChunkRef.From
+	})
+	lastStoreIndex := len(c.stores) - 1
+	lastStore := c.stores[lastStoreIndex]
+	// go through all chunks in reverse
+	for i := len(result) - 1; i >= 0; i-- {
+		for result[i].From < lastStore.start && lastStoreIndex >= 0 {
+			lastStoreIndex--
+			if lastStoreIndex >= 0 {
+				lastStore = c.stores[lastStoreIndex]
+				continue
+			}
+		}
+		result[i].fetcher = lastStore.GetChunkFetcher(0)
+	}
+	return result, nil
 }
 
 // LabelValuesForMetricName retrieves all label values for a single label name and metric name.
@@ -133,25 +230,24 @@ func (c compositeStore) LabelNamesForMetricName(ctx context.Context, userID stri
 	return result.Strings(), err
 }
 
-func (c compositeStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]Chunk, []*Fetcher, error) {
-	chunkIDs := [][]Chunk{}
-	fetchers := []*Fetcher{}
+func (c compositeStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]LazyChunk, error) {
+	// todo better allocations
+	result := []LazyChunk{}
 	err := c.forStores(ctx, userID, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
-		ids, fetcher, err := store.GetChunkRefs(innerCtx, userID, from, through, matchers...)
+		chks, err := store.GetChunkRefs(innerCtx, userID, from, through, matchers...)
 		if err != nil {
 			return err
 		}
 
 		// Skip it if there are no chunks.
-		if len(ids) == 0 {
+		if len(chks) == 0 {
 			return nil
 		}
 
-		chunkIDs = append(chunkIDs, ids...)
-		fetchers = append(fetchers, fetcher...)
+		result = append(result, chks...)
 		return nil
 	})
-	return chunkIDs, fetchers, err
+	return result, err
 }
 
 func (c compositeStore) GetChunkFetcher(tm model.Time) *Fetcher {

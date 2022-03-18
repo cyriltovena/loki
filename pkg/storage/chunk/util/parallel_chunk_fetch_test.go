@@ -9,11 +9,11 @@ import (
 
 func BenchmarkGetParallelChunks(b *testing.B) {
 	ctx := context.Background()
-	in := make([]chunk.Chunk, 1024)
+	in := make([]chunk.LazyChunk, 1024)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		res, err := GetParallelChunks(ctx, 150, in,
-			func(_ context.Context, d *chunk.DecodeContext, c chunk.Chunk) (chunk.Chunk, error) {
+			func(_ context.Context, d *chunk.DecodeContext, c chunk.Chunk, _ string) (chunk.Chunk, error) {
 				return c, nil
 			})
 		if err != nil {

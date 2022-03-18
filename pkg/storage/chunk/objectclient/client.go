@@ -28,7 +28,7 @@ var FSEncoder = func(schema chunk.SchemaConfig, chk chunk.Chunk) string {
 	// This has the downside of making them opaque and storing all chunks in a single
 	// directory, hurting performance at scale and discoverability.
 	// Post v12, we respect the directory structure imposed by chunk keys.
-	key := schema.ExternalKey(chk)
+	key := schema.ExternalKey(chk.ChunkRef)
 	if schema.VersionForChunk(chk) > 11 {
 		split := strings.LastIndexByte(key, '/')
 		encodedTail := base64Encoder(key[split+1:])
@@ -85,7 +85,7 @@ func (o *Client) PutChunks(ctx context.Context, chunks []chunk.Chunk) error {
 		if o.keyEncoder != nil {
 			key = o.keyEncoder(o.schema, chunks[i])
 		} else {
-			key = o.schema.ExternalKey(chunks[i])
+			key = o.schema.ExternalKey(chunks[i].ChunkRef)
 		}
 
 		chunkKeys = append(chunkKeys, key)
@@ -110,7 +110,7 @@ func (o *Client) PutChunks(ctx context.Context, chunks []chunk.Chunk) error {
 }
 
 // GetChunks retrieves the specified chunks from the configured backend
-func (o *Client) GetChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.Chunk, error) {
+func (o *Client) GetChunks(ctx context.Context, chunks []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	getChunkMaxParallel := o.getChunkMaxParallel
 	if getChunkMaxParallel == 0 {
 		getChunkMaxParallel = defaultMaxParallel
@@ -118,13 +118,11 @@ func (o *Client) GetChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.C
 	return util.GetParallelChunks(ctx, getChunkMaxParallel, chunks, o.getChunk)
 }
 
-func (o *Client) getChunk(ctx context.Context, decodeContext *chunk.DecodeContext, c chunk.Chunk) (chunk.Chunk, error) {
-
+func (o *Client) getChunk(ctx context.Context, decodeContext *chunk.DecodeContext, c chunk.Chunk, key string) (chunk.Chunk, error) {
 	if ctx.Err() != nil {
 		return chunk.Chunk{}, ctx.Err()
 	}
 
-	key := o.schema.ExternalKey(c)
 	if o.keyEncoder != nil {
 		key = o.keyEncoder(o.schema, c)
 	}
@@ -158,7 +156,7 @@ func (o *Client) DeleteChunk(ctx context.Context, userID, chunkID string) error 
 		if err != nil {
 			return err
 		}
-		key = o.keyEncoder(o.schema, c)
+		key = o.keyEncoder(o.schema, chunk.NewChunkFromRef(c))
 	}
 	return o.store.DeleteObject(ctx, key)
 }

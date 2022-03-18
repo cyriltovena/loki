@@ -2,6 +2,7 @@ package chunk
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/go-kit/log/level"
@@ -34,8 +35,8 @@ var (
 
 const chunkDecodeParallelism = 16
 
-func filterChunksByTime(from, through model.Time, chunks []Chunk) []Chunk {
-	filtered := make([]Chunk, 0, len(chunks))
+func filterLazyChunksByTime(from, through model.Time, chunks []LazyChunk) []LazyChunk {
+	filtered := make([]LazyChunk, 0, len(chunks))
 	for _, chunk := range chunks {
 		if chunk.Through < from || through < chunk.From {
 			continue
@@ -55,9 +56,8 @@ func labelNamesFromChunks(chunks []Chunk) []string {
 	return result.Strings()
 }
 
-func filterChunksByUniqueFingerprint(s SchemaConfig, chunks []Chunk) ([]Chunk, []string) {
-	filtered := make([]Chunk, 0, len(chunks))
-	keys := make([]string, 0, len(chunks))
+func filterLazyChunksByUniqueFingerprint(chunks []LazyChunk) []LazyChunk {
+	filtered := make([]LazyChunk, 0, len(chunks))
 	uniqueFp := map[model.Fingerprint]struct{}{}
 
 	for _, chunk := range chunks {
@@ -65,17 +65,16 @@ func filterChunksByUniqueFingerprint(s SchemaConfig, chunks []Chunk) ([]Chunk, [
 			continue
 		}
 		filtered = append(filtered, chunk)
-		keys = append(keys, s.ExternalKey(chunk))
 		uniqueFp[chunk.FingerprintModel()] = struct{}{}
 	}
-	return filtered, keys
+	return filtered
 }
 
 // Fetcher deals with fetching chunk contents from the cache/store,
 // and writing back any misses to the cache.  Also responsible for decoding
 // chunks from the cache, in parallel.
 type Fetcher struct {
-	schema     SchemaConfig
+	pcfg       PeriodConfig
 	storage    Client
 	cache      cache.Cache
 	cacheStubs bool
@@ -86,8 +85,11 @@ type Fetcher struct {
 	maxAsyncConcurrency int
 	maxAsyncBufferSize  int
 
-	asyncQueue chan []Chunk
-	stop       chan struct{}
+	asyncQueue chan struct {
+		chunks []Chunk
+		refs   []LazyChunk
+	}
+	stop chan struct{}
 }
 
 type decodeRequest struct {
@@ -102,9 +104,9 @@ type decodeResponse struct {
 }
 
 // NewChunkFetcher makes a new ChunkFetcher.
-func NewChunkFetcher(cacher cache.Cache, cacheStubs bool, schema SchemaConfig, storage Client, maxAsyncConcurrency int, maxAsyncBufferSize int) (*Fetcher, error) {
+func NewChunkFetcher(cacher cache.Cache, cacheStubs bool, pcfg PeriodConfig, storage Client, maxAsyncConcurrency int, maxAsyncBufferSize int) (*Fetcher, error) {
 	c := &Fetcher{
-		schema:              schema,
+		pcfg:                pcfg,
 		storage:             storage,
 		cache:               cacher,
 		cacheStubs:          cacheStubs,
@@ -121,7 +123,10 @@ func NewChunkFetcher(cacher cache.Cache, cacheStubs bool, schema SchemaConfig, s
 
 	// Start a number of goroutines - processing async operations - equal
 	// to the max concurrency we have.
-	c.asyncQueue = make(chan []Chunk, c.maxAsyncBufferSize)
+	c.asyncQueue = make(chan struct {
+		chunks []Chunk
+		refs   []LazyChunk
+	}, c.maxAsyncBufferSize)
 	for i := 0; i < c.maxAsyncConcurrency; i++ {
 		go c.asyncWriteBackCacheQueueProcessLoop()
 	}
@@ -129,9 +134,15 @@ func NewChunkFetcher(cacher cache.Cache, cacheStubs bool, schema SchemaConfig, s
 	return c, nil
 }
 
-func (c *Fetcher) writeBackCacheAsync(fromStorage []Chunk) error {
+func (c *Fetcher) writeBackCacheAsync(fromStorage []Chunk, refs []LazyChunk) error {
 	select {
-	case c.asyncQueue <- fromStorage:
+	case c.asyncQueue <- struct {
+		chunks []Chunk
+		refs   []LazyChunk
+	}{
+		chunks: fromStorage,
+		refs:   refs,
+	}:
 		chunkFetcherCacheQueueEnqueue.Add(float64(len(fromStorage)))
 		return nil
 	default:
@@ -143,8 +154,8 @@ func (c *Fetcher) asyncWriteBackCacheQueueProcessLoop() {
 	for {
 		select {
 		case fromStorage := <-c.asyncQueue:
-			chunkFetcherCacheQueueDequeue.Add(float64(len(fromStorage)))
-			cacheErr := c.writeBackCache(context.Background(), fromStorage)
+			chunkFetcherCacheQueueDequeue.Add(float64(len(fromStorage.chunks)))
+			cacheErr := c.writeBackCache(context.Background(), fromStorage.chunks, fromStorage.refs)
 			if cacheErr != nil {
 				level.Warn(util_log.Logger).Log("msg", "could not write fetched chunks from storage into chunk cache", "err", cacheErr)
 			}
@@ -179,19 +190,29 @@ func (c *Fetcher) worker() {
 
 // FetchChunks fetches a set of chunks from cache and store. Note that the keys passed in must be
 // lexicographically sorted, while the returned chunks are not in the same order as the passed in chunks.
-func (c *Fetcher) FetchChunks(ctx context.Context, chunks []Chunk, keys []string) ([]Chunk, error) {
+func (c *Fetcher) FetchChunks(ctx context.Context, refs []LazyChunk) ([]Chunk, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 	log, ctx := spanlogger.New(ctx, "ChunkStore.FetchChunks")
 	defer log.Span.Finish()
 
+	sort.Slice(refs, func(i, j int) bool {
+		return refs[i].ExternalKey < refs[j].ExternalKey
+	})
+	keys := make([]string, len(refs))
+	// chunks := make([]Chunk, len(refs))
+	for i, ref := range refs {
+		keys[i] = ref.ExternalKey
+		// chunks[i] = NewChunkFromRef(ref.ChunkRef)
+	}
+
 	// Now fetch the actual chunk data from Memcache / S3
 	cacheHits, cacheBufs, _, err := c.cache.Fetch(ctx, keys)
 	if err != nil {
 		level.Warn(log).Log("msg", "error fetching from cache", "err", err)
 	}
-	fromCache, missing, err := c.processCacheResponse(ctx, chunks, cacheHits, cacheBufs)
+	fromCache, missing, err := c.processCacheResponse(ctx, refs, cacheHits, cacheBufs)
 	if err != nil {
 		level.Warn(log).Log("msg", "error process response from cache", "err", err)
 	}
@@ -202,7 +223,7 @@ func (c *Fetcher) FetchChunks(ctx context.Context, chunks []Chunk, keys []string
 	}
 
 	// Always cache any chunks we did get
-	if cacheErr := c.writeBackCacheAsync(fromStorage); cacheErr != nil {
+	if cacheErr := c.writeBackCacheAsync(fromStorage, missing); cacheErr != nil {
 		if cacheErr == errAsyncBufferFull {
 			skipped.Inc()
 		}
@@ -214,11 +235,10 @@ func (c *Fetcher) FetchChunks(ctx context.Context, chunks []Chunk, keys []string
 		return nil, promql.ErrStorage{Err: err}
 	}
 
-	allChunks := append(fromCache, fromStorage...)
-	return allChunks, nil
+	return append(fromCache, fromStorage...), nil
 }
 
-func (c *Fetcher) writeBackCache(ctx context.Context, chunks []Chunk) error {
+func (c *Fetcher) writeBackCache(ctx context.Context, chunks []Chunk, refs []LazyChunk) error {
 	keys := make([]string, 0, len(chunks))
 	bufs := make([][]byte, 0, len(chunks))
 	for i := range chunks {
@@ -232,7 +252,7 @@ func (c *Fetcher) writeBackCache(ctx context.Context, chunks []Chunk) error {
 			}
 		}
 
-		keys = append(keys, c.schema.ExternalKey(chunks[i]))
+		keys = append(keys, refs[i].ExternalKey)
 		bufs = append(bufs, encoded)
 	}
 
@@ -245,27 +265,28 @@ func (c *Fetcher) writeBackCache(ctx context.Context, chunks []Chunk) error {
 
 // ProcessCacheResponse decodes the chunks coming back from the cache, separating
 // hits and misses.
-func (c *Fetcher) processCacheResponse(ctx context.Context, chunks []Chunk, keys []string, bufs [][]byte) ([]Chunk, []Chunk, error) {
+func (c *Fetcher) processCacheResponse(ctx context.Context, refs []LazyChunk, keys []string, bufs [][]byte) ([]Chunk, []LazyChunk, error) {
 	var (
 		requests  = make([]decodeRequest, 0, len(keys))
 		responses = make(chan decodeResponse)
-		missing   []Chunk
+		missing   = make([]LazyChunk, 0, len(refs))
+		found     = make([]Chunk, 0, len(refs))
 		logger    = util_log.WithContext(ctx, util_log.Logger)
 	)
 
 	i, j := 0, 0
-	for i < len(chunks) && j < len(keys) {
-		chunkKey := c.schema.ExternalKey(chunks[i])
+	for i < len(refs) && j < len(keys) {
+		chunkKey := refs[i].ExternalKey
 
 		if chunkKey < keys[j] {
-			missing = append(missing, chunks[i])
+			missing = append(missing, refs[i])
 			i++
 		} else if chunkKey > keys[j] {
 			level.Warn(logger).Log("msg", "got chunk from cache we didn't ask for")
 			j++
 		} else {
 			requests = append(requests, decodeRequest{
-				chunk:     chunks[i],
+				chunk:     refs[i].Chunk(),
 				buf:       bufs[j],
 				responses: responses,
 			})
@@ -273,10 +294,10 @@ func (c *Fetcher) processCacheResponse(ctx context.Context, chunks []Chunk, keys
 			j++
 		}
 	}
-	for ; i < len(chunks); i++ {
-		missing = append(missing, chunks[i])
+	for ; i < len(refs); i++ {
+		missing = append(missing, refs[i])
 	}
-	level.Debug(logger).Log("chunks", len(chunks), "decodeRequests", len(requests), "missing", len(missing))
+	level.Debug(logger).Log("refs", len(refs), "decodeRequests", len(requests), "missing", len(missing))
 
 	go func() {
 		for _, request := range requests {
@@ -284,10 +305,7 @@ func (c *Fetcher) processCacheResponse(ctx context.Context, chunks []Chunk, keys
 		}
 	}()
 
-	var (
-		err   error
-		found []Chunk
-	)
+	var err error
 	for i := 0; i < len(requests); i++ {
 		response := <-responses
 

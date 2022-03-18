@@ -145,18 +145,14 @@ func main() {
 	parsedTo := mustParse(*to)
 	f, t := util.RoundToMilliseconds(parsedFrom, parsedTo)
 
-	schemaGroups, fetchers, err := s.GetChunkRefs(ctx, userID, f, t, matchers...)
+	refs, err := s.GetChunkRefs(ctx, userID, f, t, matchers...)
 	if err != nil {
 		log.Println("Error querying index for chunk refs:", err)
 		os.Exit(1)
 	}
 
-	var totalChunks int
-	for i := range schemaGroups {
-		totalChunks += len(schemaGroups[i])
-	}
 	rdr := bufio.NewReader(os.Stdin)
-	fmt.Printf("Timespan will sync %v chunks spanning %v schemas.\n", totalChunks, len(fetchers))
+	fmt.Printf("Timespan will sync %v chunks\n", len(refs))
 	fmt.Print("Proceed? (Y/n):")
 	in, err := rdr.ReadString('\n')
 	if err != nil {
@@ -300,100 +296,98 @@ func (m *chunkMover) moveChunks(ctx context.Context, threadID int, syncRangeCh <
 			totalBytes := 0
 			totalChunks := 0
 			log.Println(threadID, "Processing", time.Unix(0, sr.from).UTC(), time.Unix(0, sr.to).UTC())
-			schemaGroups, fetchers, err := m.source.GetChunkRefs(m.ctx, m.sourceUser, model.TimeFromUnixNano(sr.from), model.TimeFromUnixNano(sr.to), m.matchers...)
+			refs, err := m.source.GetChunkRefs(m.ctx, m.sourceUser, model.TimeFromUnixNano(sr.from), model.TimeFromUnixNano(sr.to), m.matchers...)
 			if err != nil {
 				log.Println(threadID, "Error querying index for chunk refs:", err)
 				errCh <- err
 				return
 			}
-			for i, f := range fetchers {
-				log.Printf("%v Processing Schema %v which contains %v chunks\n", threadID, i, len(schemaGroups[i]))
+			log.Printf("%v Processing  which contains %v chunks\n", threadID, len(refs))
 
-				// Slice up into batches
-				for j := 0; j < len(schemaGroups[i]); j += m.batch {
-					k := j + m.batch
-					if k > len(schemaGroups[i]) {
-						k = len(schemaGroups[i])
-					}
+			// Slice up into batches
+			for j := 0; j < len(schemaGroups[i]); j += m.batch {
+				k := j + m.batch
+				if k > len(schemaGroups[i]) {
+					k = len(schemaGroups[i])
+				}
 
-					chunks := schemaGroups[i][j:k]
-					log.Printf("%v Processing chunks %v-%v of %v\n", threadID, j, k, len(schemaGroups[i]))
+				chunks := schemaGroups[i][j:k]
+				log.Printf("%v Processing chunks %v-%v of %v\n", threadID, j, k, len(schemaGroups[i]))
 
-					keys := make([]string, 0, len(chunks))
-					chks := make([]chunk.Chunk, 0, len(chunks))
+				keys := make([]string, 0, len(chunks))
+				chks := make([]chunk.Chunk, 0, len(chunks))
 
-					// FetchChunks requires chunks to be ordered by external key.
-					sort.Slice(chunks, func(x, y int) bool {
-						return m.schema.ExternalKey(chunks[x]) < m.schema.ExternalKey(chunks[y])
-					})
-					for _, chk := range chunks {
-						key := m.schema.ExternalKey(chk)
-						keys = append(keys, key)
-						chks = append(chks, chk)
-					}
-					for retry := 4; retry >= 0; retry-- {
-						chks, err = f.FetchChunks(m.ctx, chks, keys)
-						if err != nil {
-							if retry == 0 {
-								log.Println(threadID, "Final error retrieving chunks, giving up:", err)
-								errCh <- err
-								return
-							}
-							log.Println(threadID, "Error fetching chunks, will retry:", err)
-						} else {
-							break
-						}
-					}
-
-					totalChunks += len(chks)
-
-					output := make([]chunk.Chunk, 0, len(chks))
-
-					// Calculate some size stats and change the tenant ID if necessary
-					for i, chk := range chks {
-						if enc, err := chk.Encoded(); err == nil {
-							totalBytes += len(enc)
-						} else {
-							log.Println(threadID, "Error encoding a chunk:", err)
+				// FetchChunks requires chunks to be ordered by external key.
+				sort.Slice(chunks, func(x, y int) bool {
+					return m.schema.ExternalKey(chunks[x]) < m.schema.ExternalKey(chunks[y])
+				})
+				for _, chk := range chunks {
+					key := m.schema.ExternalKey(chk)
+					keys = append(keys, key)
+					chks = append(chks, chk)
+				}
+				for retry := 4; retry >= 0; retry-- {
+					chks, err = f.FetchChunks(m.ctx, chks, keys)
+					if err != nil {
+						if retry == 0 {
+							log.Println(threadID, "Final error retrieving chunks, giving up:", err)
 							errCh <- err
 							return
 						}
-						if m.sourceUser != m.destUser {
-							// Because the incoming chunks are already encoded, to change the username we have to make a new chunk
-							nc := chunk.NewChunk(m.destUser, chk.FingerprintModel(), chk.Metric, chk.Data, chk.From, chk.Through)
-							err := nc.Encode()
-							if err != nil {
-								log.Println(threadID, "Failed to encode new chunk with new user:", err)
-								errCh <- err
-								return
-							}
-							output = append(output, nc)
-						} else {
-							output = append(output, chks[i])
-						}
-
+						log.Println(threadID, "Error fetching chunks, will retry:", err)
+					} else {
+						break
 					}
-					for retry := 4; retry >= 0; retry-- {
-						err = m.dest.Put(m.ctx, output)
-						if err != nil {
-							if retry == 0 {
-								log.Println(threadID, "Final error sending chunks to new store, giving up:", err)
-								errCh <- err
-								return
-							}
-							log.Println(threadID, "Error sending chunks to new store, will retry:", err)
-						} else {
-							break
-						}
-					}
-					log.Println(threadID, "Batch sent successfully")
 				}
+
+				totalChunks += len(chks)
+
+				output := make([]chunk.Chunk, 0, len(chks))
+
+				// Calculate some size stats and change the tenant ID if necessary
+				for i, chk := range chks {
+					if enc, err := chk.Encoded(); err == nil {
+						totalBytes += len(enc)
+					} else {
+						log.Println(threadID, "Error encoding a chunk:", err)
+						errCh <- err
+						return
+					}
+					if m.sourceUser != m.destUser {
+						// Because the incoming chunks are already encoded, to change the username we have to make a new chunk
+						nc := chunk.NewChunk(m.destUser, chk.FingerprintModel(), chk.Metric, chk.Data, chk.From, chk.Through)
+						err := nc.Encode()
+						if err != nil {
+							log.Println(threadID, "Failed to encode new chunk with new user:", err)
+							errCh <- err
+							return
+						}
+						output = append(output, nc)
+					} else {
+						output = append(output, chks[i])
+					}
+
+				}
+				for retry := 4; retry >= 0; retry-- {
+					err = m.dest.Put(m.ctx, output)
+					if err != nil {
+						if retry == 0 {
+							log.Println(threadID, "Final error sending chunks to new store, giving up:", err)
+							errCh <- err
+							return
+						}
+						log.Println(threadID, "Error sending chunks to new store, will retry:", err)
+					} else {
+						break
+					}
+				}
+				log.Println(threadID, "Batch sent successfully")
 			}
-			log.Printf("%v Finished processing sync range, %v chunks, %v bytes in %v seconds\n", threadID, totalChunks, totalBytes, time.Since(start).Seconds())
-			statsCh <- stats{
-				totalChunks: totalChunks,
-				totalBytes:  totalBytes,
-			}
+		}
+		log.Printf("%v Finished processing sync range, %v chunks, %v bytes in %v seconds\n", threadID, totalChunks, totalBytes, time.Since(start).Seconds())
+		statsCh <- stats{
+			totalChunks: totalChunks,
+			totalBytes:  totalBytes,
 		}
 	}
 }

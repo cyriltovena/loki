@@ -289,7 +289,8 @@ type chunkRewriter struct {
 }
 
 func newChunkRewriter(chunkClient chunk.Client, schemaCfg chunk.PeriodConfig,
-	tableName string, bucket *bbolt.Bucket) (*chunkRewriter, error) {
+	tableName string, bucket *bbolt.Bucket,
+) (*chunkRewriter, error) {
 	schema, err := schemaCfg.CreateSchema()
 	if err != nil {
 		return nil, err
@@ -313,12 +314,17 @@ func (c *chunkRewriter) rewriteChunk(ctx context.Context, ce ChunkEntry, interva
 	userID := unsafeGetString(ce.UserID)
 	chunkID := unsafeGetString(ce.ChunkID)
 
-	chk, err := chunk.ParseExternalKey(userID, chunkID)
+	ref, err := chunk.ParseExternalKey(userID, chunkID)
 	if err != nil {
 		return false, err
 	}
 
-	chks, err := c.chunkClient.GetChunks(ctx, []chunk.Chunk{chk})
+	chks, err := c.chunkClient.GetChunks(ctx, []chunk.LazyChunk{
+		{
+			ChunkRef:    ref,
+			ExternalKey: chunkID,
+		},
+	})
 	if err != nil {
 		return false, err
 	}
@@ -352,7 +358,7 @@ func (c *chunkRewriter) rewriteChunk(ctx context.Context, ce ChunkEntry, interva
 			return false, err
 		}
 
-		entries, err := c.seriesStoreSchema.GetChunkWriteEntries(interval.Start, interval.End, userID, "logs", newChunk.Metric, c.scfg.ExternalKey(newChunk))
+		entries, err := c.seriesStoreSchema.GetChunkWriteEntries(interval.Start, interval.End, userID, "logs", newChunk.Metric, c.scfg.ExternalKey(newChunk.ChunkRef))
 		if err != nil {
 			return false, err
 		}

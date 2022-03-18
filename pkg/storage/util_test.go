@@ -144,9 +144,9 @@ func newSampleQuery(query string, start, end time.Time) *logproto.SampleQueryReq
 }
 
 type mockChunkStore struct {
-	schemas chunk.SchemaConfig
-	chunks  []chunk.Chunk
-	client  *mockChunkStoreClient
+	period chunk.PeriodConfig
+	chunks []chunk.Chunk
+	client *mockChunkStoreClient
 }
 
 // mockChunkStore cannot implement both chunk.Store and chunk.Client,
@@ -161,7 +161,7 @@ func newMockChunkStore(streams []*logproto.Stream) *mockChunkStore {
 	for _, s := range streams {
 		chunks = append(chunks, newChunk(*s))
 	}
-	return &mockChunkStore{schemas: chunk.SchemaConfig{}, chunks: chunks, client: &mockChunkStoreClient{chunks: chunks, scfg: chunk.SchemaConfig{}}}
+	return &mockChunkStore{chunks: chunks, client: &mockChunkStoreClient{chunks: chunks}}
 }
 
 func (m *mockChunkStore) Put(ctx context.Context, chunks []chunk.Chunk) error { return nil }
@@ -193,32 +193,50 @@ func (m *mockChunkStore) GetChunkFetcher(_ model.Time) *chunk.Fetcher {
 	return nil
 }
 
-func (m *mockChunkStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*chunk.Fetcher, error) {
-	refs := make([]chunk.Chunk, 0, len(m.chunks))
-	// transform real chunks into ref chunks.
-	for _, c := range m.chunks {
-		r, err := chunk.ParseExternalKey("fake", m.schemas.ExternalKey(c))
-		if err != nil {
-			panic(err)
-		}
-		refs = append(refs, r)
-	}
-
+func (m *mockChunkStore) FetchChunks(ctx context.Context, refs []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	cache, err := cache.New(cache.Config{Prefix: "chunks"}, nil, util_log.Logger)
 	if err != nil {
 		panic(err)
 	}
 
-	f, err := chunk.NewChunkFetcher(cache, false, m.schemas, m.client, 10, 100)
+	f, err := chunk.NewChunkFetcher(cache, false, m.period, m.client, 10, 100)
 	if err != nil {
 		panic(err)
 	}
-	return [][]chunk.Chunk{refs}, []*chunk.Fetcher{f}, nil
+	return f.FetchChunks(ctx, refs)
+}
+
+func (m *mockChunkStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]chunk.LazyChunk, error) {
+	refs := make([]chunk.LazyChunk, 0, len(m.chunks))
+	// transform real chunks into ref chunks.
+	for _, c := range m.chunks {
+		refs = append(refs, chunk.LazyChunk{
+			ChunkRef:    c.ChunkRef,
+			ExternalKey: m.period.ExternalKey(c.ChunkRef),
+		})
+	}
+
+	return refs, nil
+}
+
+func (m *mockChunkStore) LazyChunksForKeys(userID string, keys []string) ([]chunk.LazyChunk, error) {
+	result := make([]chunk.LazyChunk, 0, len(m.chunks))
+	for _, k := range keys {
+		c, err := chunk.ParseExternalKey(userID, k)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, chunk.LazyChunk{
+			ChunkRef:    c,
+			ExternalKey: k,
+		})
+	}
+	return result, nil
 }
 
 type mockChunkStoreClient struct {
-	chunks []chunk.Chunk
-	scfg   chunk.SchemaConfig
+	chunks    []chunk.Chunk
+	periodCfg chunk.PeriodConfig
 }
 
 func (m mockChunkStoreClient) Stop() {
@@ -229,12 +247,12 @@ func (m mockChunkStoreClient) PutChunks(ctx context.Context, chunks []chunk.Chun
 	return nil
 }
 
-func (m mockChunkStoreClient) GetChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.Chunk, error) {
+func (m mockChunkStoreClient) GetChunks(ctx context.Context, chunks []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	var res []chunk.Chunk
 	for _, c := range chunks {
 		for _, sc := range m.chunks {
 			// only returns chunks requested using the external key
-			if m.scfg.ExternalKey(c) == m.scfg.ExternalKey((sc)) {
+			if c.ExternalKey == m.periodCfg.ExternalKey((sc.ChunkRef)) {
 				res = append(res, sc)
 			}
 		}

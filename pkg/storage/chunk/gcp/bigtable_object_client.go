@@ -54,7 +54,7 @@ func (s *bigtableObjectClient) PutChunks(ctx context.Context, chunks []chunk.Chu
 		if err != nil {
 			return err
 		}
-		key := s.schemaCfg.ExternalKey(chunks[i])
+		key := s.schemaCfg.ExternalKey(chunks[i].ChunkRef)
 		tableName, err := s.schemaCfg.ChunkTableFor(chunks[i].From)
 		if err != nil {
 			return err
@@ -81,7 +81,7 @@ func (s *bigtableObjectClient) PutChunks(ctx context.Context, chunks []chunk.Chu
 	return nil
 }
 
-func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Chunk) ([]chunk.Chunk, error) {
+func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	sp, ctx := ot.StartSpanFromContext(ctx, "GetChunks")
 	defer sp.Finish()
 	sp.LogFields(otlog.Int("chunks requested", len(input)))
@@ -93,12 +93,12 @@ func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Chun
 		if err != nil {
 			return nil, err
 		}
-		key := s.schemaCfg.ExternalKey(c)
+		key := c.ExternalKey
 		keys[tableName] = append(keys[tableName], key)
 		if _, ok := chunks[tableName]; !ok {
 			chunks[tableName] = map[string]chunk.Chunk{}
 		}
-		chunks[tableName][key] = c
+		chunks[tableName][key] = c.Chunk()
 	}
 
 	outs := make(chan chunk.Chunk, len(input))

@@ -43,7 +43,7 @@ func (s *StorageClient) PutChunks(ctx context.Context, chunks []chunk.Chunk) err
 			return errors.WithStack(err)
 		}
 
-		key := s.schemaCfg.ExternalKey(chunks[i])
+		key := s.schemaCfg.ExternalKey(chunks[i].ChunkRef)
 		tableName, err := s.schemaCfg.ChunkTableFor(chunks[i].From)
 		if err != nil {
 			return errors.WithStack(err)
@@ -78,7 +78,7 @@ func (s *StorageClient) IsChunkNotFoundErr(_ error) bool {
 	return false
 }
 
-func (s *StorageClient) GetChunks(ctx context.Context, input []chunk.Chunk) ([]chunk.Chunk, error) {
+func (s *StorageClient) GetChunks(ctx context.Context, input []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	req := &GetChunksRequest{}
 	req.Chunks = []*Chunk{}
 	var err error
@@ -89,7 +89,7 @@ func (s *StorageClient) GetChunks(ctx context.Context, input []chunk.Chunk) ([]c
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		chunkInfo.Key = s.schemaCfg.ExternalKey(inputInfo)
+		chunkInfo.Key = inputInfo.ExternalKey
 		req.Chunks = append(req.Chunks, chunkInfo)
 	}
 	streamer, err := s.client.GetChunks(ctx, req)

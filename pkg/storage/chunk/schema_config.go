@@ -14,6 +14,7 @@ import (
 	"github.com/weaveworks/common/mtime"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/math"
 )
@@ -57,6 +58,25 @@ func (cfg *PeriodConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	// call VersionAsInt after unmarshaling to errcheck schema version and populate PeriodConfig.schemaInt
 	_, err = cfg.VersionAsInt()
 	return err
+}
+
+func (cfg PeriodConfig) ExternalKey(ref logproto.ChunkRef) string {
+	v, _ := cfg.VersionAsInt()
+	if v >= 12 {
+		return newerExternalKey(ref)
+	}
+	return newExternalKey(ref)
+}
+
+// post-checksum
+func newExternalKey(ref logproto.ChunkRef) string {
+	// This is the inverse of chunk.parseNewExternalKey.
+	return fmt.Sprintf("%s/%x:%x:%x:%x", ref.UserID, ref.Fingerprint, int64(ref.From), int64(ref.Through), ref.Checksum)
+}
+
+// v12+
+func newerExternalKey(ref logproto.ChunkRef) string {
+	return fmt.Sprintf("%s/%x/%x:%x:%x", ref.UserID, ref.Fingerprint, int64(ref.From), int64(ref.Through), ref.Checksum)
 }
 
 // DayTime is a model.Time what holds day-aligned values, and marshals to/from
@@ -448,16 +468,9 @@ func (cfg *PeriodicTableConfig) tableForPeriod(i int64) string {
 }
 
 // Generate the appropriate external key based on cfg.Schema, chunk.Checksum, and chunk.From
-func (cfg SchemaConfig) ExternalKey(chunk Chunk) string {
-	p, err := cfg.SchemaForTime(chunk.From)
-	v, _ := p.VersionAsInt()
-	if err == nil && v >= 12 {
-		return cfg.newerExternalKey(chunk)
-	} else if chunk.ChecksumSet {
-		return cfg.newExternalKey(chunk)
-	} else {
-		return cfg.legacyExternalKey(chunk)
-	}
+func (cfg SchemaConfig) ExternalKey(ref logproto.ChunkRef) string {
+	p, _ := cfg.SchemaForTime(ref.From)
+	return p.ExternalKey(ref)
 }
 
 // VersionForChunk will return the schema version associated with the `From` timestamp of a chunk.
@@ -466,22 +479,4 @@ func (cfg SchemaConfig) VersionForChunk(c Chunk) int {
 	p, _ := cfg.SchemaForTime(c.From)
 	v, _ := p.VersionAsInt()
 	return v
-}
-
-// pre-checksum
-func (cfg SchemaConfig) legacyExternalKey(chunk Chunk) string {
-	// This is the inverse of chunk.parseLegacyExternalKey, with "<user id>/" prepended.
-	// Legacy chunks had the user ID prefix on s3/memcache, but not in DynamoDB.
-	return fmt.Sprintf("%d:%d:%d", (chunk.Fingerprint), int64(chunk.From), int64(chunk.Through))
-}
-
-// post-checksum
-func (cfg SchemaConfig) newExternalKey(chunk Chunk) string {
-	// This is the inverse of chunk.parseNewExternalKey.
-	return fmt.Sprintf("%s/%x:%x:%x:%x", chunk.UserID, chunk.Fingerprint, int64(chunk.From), int64(chunk.Through), chunk.Checksum)
-}
-
-// v12+
-func (cfg SchemaConfig) newerExternalKey(chunk Chunk) string {
-	return fmt.Sprintf("%s/%x/%x:%x:%x", chunk.UserID, chunk.Fingerprint, int64(chunk.From), int64(chunk.Through), chunk.Checksum)
 }

@@ -34,7 +34,7 @@ type Client interface {
 	Stop()
 
 	PutChunks(ctx context.Context, chunks []Chunk) error
-	GetChunks(ctx context.Context, chunks []Chunk) ([]Chunk, error)
+	GetChunks(ctx context.Context, chunks []LazyChunk) ([]Chunk, error)
 	DeleteChunk(ctx context.Context, userID, chunkID string) error
 	IsChunkNotFoundErr(err error) bool
 }

@@ -367,7 +367,7 @@ type chunksPlusError struct {
 }
 
 // GetChunks implements chunk.Client.
-func (a dynamoDBStorageClient) GetChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.Chunk, error) {
+func (a dynamoDBStorageClient) GetChunks(ctx context.Context, chunks []chunk.LazyChunk) ([]chunk.Chunk, error) {
 	log, ctx := spanlogger.New(ctx, "GetChunks.DynamoDB", ot.Tag{Key: "numChunks", Value: len(chunks)})
 	defer log.Span.Finish()
 	level.Debug(log).Log("chunks requested", len(chunks))
@@ -416,15 +416,15 @@ var placeholder = []byte{'c'}
 // Fetch a set of chunks from DynamoDB, handling retries and backoff.
 // Structure is identical to BatchWrite(), but operating on different datatypes
 // so cannot share implementation.  If you fix a bug here fix it there too.
-func (a dynamoDBStorageClient) getDynamoDBChunks(ctx context.Context, chunks []chunk.Chunk) ([]chunk.Chunk, error) {
-	log, ctx := spanlogger.New(ctx, "getDynamoDBChunks", ot.Tag{Key: "numChunks", Value: len(chunks)})
+func (a dynamoDBStorageClient) getDynamoDBChunks(ctx context.Context, refs []chunk.LazyChunk) ([]chunk.Chunk, error) {
+	log, ctx := spanlogger.New(ctx, "getDynamoDBChunks", ot.Tag{Key: "numChunks", Value: len(refs)})
 	defer log.Span.Finish()
 	outstanding := dynamoDBReadRequest{}
 	chunksByKey := map[string]chunk.Chunk{}
-	for _, chunk := range chunks {
-		key := a.schemaCfg.ExternalKey(chunk)
-		chunksByKey[key] = chunk
-		tableName, err := a.schemaCfg.ChunkTableFor(chunk.From)
+	for _, ref := range refs {
+		key := ref.ExternalKey
+		chunksByKey[key] = ref.Chunk()
+		tableName, err := a.schemaCfg.ChunkTableFor(ref.From)
 		if err != nil {
 			return nil, log.Error(err)
 		}
@@ -581,7 +581,7 @@ func (a dynamoDBStorageClient) writesForChunks(chunks []chunk.Chunk) (dynamoDBWr
 		if err != nil {
 			return nil, err
 		}
-		key := a.schemaCfg.ExternalKey(chunks[i])
+		key := a.schemaCfg.ExternalKey(chunks[i].ChunkRef)
 
 		table, err := a.schemaCfg.ChunkTableFor(chunks[i].From)
 		if err != nil {

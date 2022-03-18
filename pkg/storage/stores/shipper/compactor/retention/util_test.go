@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-	"sort"
 	"testing"
 	"time"
 
@@ -177,9 +176,9 @@ func (t *testStore) HasChunk(c chunk.Chunk) bool {
 
 	chunkIDs := make(map[string]struct{})
 	for _, chk := range chunks {
-		chunkIDs[t.schemaCfg.ExternalKey(chk)] = struct{}{}
+		chunkIDs[t.schemaCfg.ExternalKey(chk.ChunkRef)] = struct{}{}
 	}
-	return len(chunkIDs) == 1 && t.schemaCfg.ExternalKey(c) == t.schemaCfg.ExternalKey(chunks[0])
+	return len(chunkIDs) == 1 && t.schemaCfg.ExternalKey(c.ChunkRef) == t.schemaCfg.ExternalKey(chunks[0].ChunkRef)
 }
 
 func (t *testStore) GetChunks(userID string, from, through model.Time, metric labels.Labels) []chunk.Chunk {
@@ -189,33 +188,18 @@ func (t *testStore) GetChunks(userID string, from, through model.Time, metric la
 		matchers = append(matchers, labels.MustNewMatcher(labels.MatchEqual, l.Name, l.Value))
 	}
 	ctx := user.InjectOrgID(context.Background(), userID)
-	chunks, fetchers, err := t.Store.GetChunkRefs(ctx, userID, from, through, matchers...)
+	refs, err := t.Store.GetChunkRefs(ctx, userID, from, through, matchers...)
 	require.NoError(t.t, err)
+	chunks, err := t.Store.FetchChunks(ctx, refs)
 	fetchedChunk := []chunk.Chunk{}
-	for _, f := range fetchers {
-		for _, cs := range chunks {
-			keys := make([]string, 0, len(cs))
-			sort.Slice(chunks, func(i, j int) bool { return schemaCfg.ExternalKey(cs[i]) < schemaCfg.ExternalKey(cs[j]) })
 
-			for _, c := range cs {
-				keys = append(keys, schemaCfg.ExternalKey(c))
-			}
-			cks, err := f.FetchChunks(ctx, cs, keys)
-			if err != nil {
-				t.t.Fatal(err)
-			}
-		outer:
-			for _, c := range cks {
-				for _, matcher := range matchers {
-					if !matcher.Matches(c.Metric.Get(matcher.Name)) {
-						continue outer
-					}
-				}
-				fetchedChunk = append(fetchedChunk, c)
-			}
-
+	for _, c := range chunks {
+		if !c.Matches(matchers...) {
+			continue
 		}
+		fetchedChunk = append(fetchedChunk, c)
 	}
+
 	return fetchedChunk
 }
 

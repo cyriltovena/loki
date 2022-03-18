@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -125,20 +124,20 @@ func TestChunkCodec(t *testing.T) {
 				},
 			}
 
-			have, err := ParseExternalKey(userID, s.ExternalKey(c.chunk))
+			ref, err := ParseExternalKey(userID, s.ExternalKey(c.chunk.ChunkRef))
 			require.NoError(t, err)
-
+			chk := NewChunkFromRef(ref)
 			buf := make([]byte, len(encoded))
 			copy(buf, encoded)
 			if c.f != nil {
-				c.f(&have, buf)
+				c.f(&chk, buf)
 			}
 
-			err = have.Decode(decodeContext, buf)
+			err = chk.Decode(decodeContext, buf)
 			require.Equal(t, c.err, errors.Cause(err))
 
 			if c.err == nil {
-				require.Equal(t, have, c.chunk)
+				require.Equal(t, chk, c.chunk)
 			}
 		})
 	}
@@ -167,7 +166,8 @@ func TestChunkDecodeBackwardsCompatibility(t *testing.T) {
 	// Chunk encoded using code at commit b1777a50ab19
 	rawData := []byte("\x00\x00\x00\xb7\xff\x06\x00\x00sNaPpY\x01\xa5\x00\x00\x04\xc7a\xba{\"fingerprint\":18245339272195143978,\"userID\":\"userID\",\"from\":1557650721,\"through\":1557654321,\"metric\":{\"bar\":\"baz\",\"toms\":\"code\",\"__name__\":\"foo\"},\"encoding\":3}\n\x00\x00\x00\x15\x01\x00\x11\x00\x00\x01\xd0\xdd\xf5\xb6\xd5Z\x00\x00\x00\x00\x00\x00\x00\x00\x00")
 	decodeContext := NewDecodeContext()
-	have, err := ParseExternalKey(userID, "userID/fd3477666dacf92a:16aab37c8e8:16aab6eb768:38eb373c")
+	ref, err := ParseExternalKey(userID, "userID/fd3477666dacf92a:16aab37c8e8:16aab6eb768:38eb373c")
+	have := NewChunkFromRef(ref)
 	require.NoError(t, err)
 	require.NoError(t, have.Decode(decodeContext, rawData))
 	want := chunk
@@ -188,7 +188,7 @@ func TestChunkDecodeBackwardsCompatibility(t *testing.T) {
 			},
 		},
 	}
-	require.Equal(t, s.ExternalKey(have), s.ExternalKey(want))
+	require.Equal(t, s.ExternalKey(have.ChunkRef), s.ExternalKey(want.ChunkRef))
 }
 
 func TestParseExternalKey(t *testing.T) {
@@ -197,15 +197,6 @@ func TestParseExternalKey(t *testing.T) {
 		chunk Chunk
 		err   error
 	}{
-		{key: "2:1484661279394:1484664879394", chunk: Chunk{
-			ChunkRef: logproto.ChunkRef{
-				UserID:      userID,
-				Fingerprint: uint64(2),
-				From:        model.Time(1484661279394),
-				Through:     model.Time(1484664879394),
-			},
-		}},
-
 		{key: userID + "/2:270d8f00:270d8f00:f84c5745", chunk: Chunk{
 			ChunkRef: logproto.ChunkRef{
 				UserID:      userID,
@@ -214,7 +205,6 @@ func TestParseExternalKey(t *testing.T) {
 				Through:     model.Time(655200000),
 				Checksum:    4165752645,
 			},
-			ChecksumSet: true,
 		}},
 
 		{key: userID + "/2/270d8f00:270d8f00:f84c5745", chunk: Chunk{
@@ -225,14 +215,13 @@ func TestParseExternalKey(t *testing.T) {
 				Through:     model.Time(655200000),
 				Checksum:    4165752645,
 			},
-			ChecksumSet: true,
 		}},
 
 		{key: "invalidUserID/2:270d8f00:270d8f00:f84c5745", chunk: Chunk{}, err: ErrWrongMetadata},
 	} {
 		chunk, err := ParseExternalKey(userID, c.key)
 		require.Equal(t, c.err, errors.Cause(err))
-		require.Equal(t, c.chunk, chunk)
+		require.Equal(t, c.chunk.ChunkRef, chunk)
 	}
 }
 
@@ -431,7 +420,6 @@ func TestChunkKeys(t *testing.T) {
 					Through:     model.TimeFromUnix(5000),
 					Checksum:    12345,
 				},
-				ChecksumSet: true,
 			},
 			schemaCfg: SchemaConfig{
 				Configs: []PeriodConfig{
@@ -453,7 +441,6 @@ func TestChunkKeys(t *testing.T) {
 					Through:     model.TimeFromUnix(5000),
 					Checksum:    12345,
 				},
-				ChecksumSet: true,
 			},
 			schemaCfg: SchemaConfig{
 				Configs: []PeriodConfig{
@@ -467,10 +454,10 @@ func TestChunkKeys(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			key := tc.schemaCfg.ExternalKey(tc.chunk)
+			key := tc.schemaCfg.ExternalKey(tc.chunk.ChunkRef)
 			newChunk, err := ParseExternalKey("fake", key)
 			require.NoError(t, err)
-			require.Equal(t, tc.chunk, newChunk)
+			require.Equal(t, tc.chunk.ChunkRef, newChunk)
 			require.Equal(t, key, tc.schemaCfg.ExternalKey(newChunk))
 		})
 	}
@@ -479,26 +466,13 @@ func TestChunkKeys(t *testing.T) {
 func BenchmarkParseNewerExternalKey(b *testing.B) {
 	benchmarkParseExternalKey(b, "fake/57f628c7f6d57aad/162c699f000:162c69a07eb:eb242d99")
 }
+
 func BenchmarkParseNewExternalKey(b *testing.B) {
 	benchmarkParseExternalKey(b, "fake/57f628c7f6d57aad:162c699f000:162c69a07eb:eb242d99")
 }
+
 func BenchmarkParseLegacyExternalKey(b *testing.B) {
 	benchmarkParseExternalKey(b, "2:1484661279394:1484664879394")
-}
-
-func BenchmarkParseOldLegacyExternalKey(b *testing.B) {
-	benchmarkOldParseExternalKey(b, "2:1484661279394:1484664879394")
-}
-
-func BenchmarkParseOldNewExternalKey(b *testing.B) {
-	benchmarkOldParseExternalKey(b, "fake/57f628c7f6d57aad:162c699f000:162c69a07eb:eb242d99")
-}
-
-func BenchmarkRootParseLegacyExternalKey(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_, err := parseLegacyChunkID("fake", "2:1484661279394:1484664879394")
-		require.NoError(b, err)
-	}
 }
 
 func BenchmarkRootParseNewExternalKey(b *testing.B) {
@@ -520,18 +494,4 @@ func benchmarkParseExternalKey(b *testing.B, key string) {
 		_, err := ParseExternalKey("fake", key)
 		require.NoError(b, err)
 	}
-}
-
-func benchmarkOldParseExternalKey(b *testing.B, key string) {
-	for i := 0; i < b.N; i++ {
-		_, err := OldParseExternalKey("fake", key)
-		require.NoError(b, err)
-	}
-}
-
-func OldParseExternalKey(userID, externalKey string) (Chunk, error) {
-	if !strings.Contains(externalKey, "/") { // pre-checksum
-		return parseLegacyChunkID(userID, externalKey)
-	}
-	return parseNewExternalKey(userID, externalKey)
 }

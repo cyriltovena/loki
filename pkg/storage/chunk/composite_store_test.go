@@ -27,8 +27,16 @@ func (m mockStore) LabelValuesForMetricName(ctx context.Context, userID string, 
 	return nil, nil
 }
 
-func (m mockStore) GetChunkRefs(tx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]Chunk, []*Fetcher, error) {
-	return nil, nil, nil
+func (m mockStore) GetChunkRefs(tx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]LazyChunk, error) {
+	return nil, nil
+}
+
+func (m mockStore) FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error) {
+	return nil, nil
+}
+
+func (m mockStore) LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error) {
+	return nil, nil
 }
 
 func (m mockStore) LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error) {
