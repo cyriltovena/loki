@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -305,29 +304,18 @@ func (m *chunkMover) moveChunks(ctx context.Context, threadID int, syncRangeCh <
 			log.Printf("%v Processing  which contains %v chunks\n", threadID, len(refs))
 
 			// Slice up into batches
-			for j := 0; j < len(schemaGroups[i]); j += m.batch {
+			for j := 0; j < len(refs); j += m.batch {
 				k := j + m.batch
-				if k > len(schemaGroups[i]) {
-					k = len(schemaGroups[i])
+				if k > len(refs) {
+					k = len(refs)
 				}
 
-				chunks := schemaGroups[i][j:k]
-				log.Printf("%v Processing chunks %v-%v of %v\n", threadID, j, k, len(schemaGroups[i]))
+				chunks := refs[j:k]
+				var chks []chunk.Chunk
+				log.Printf("%v Processing chunks %v-%v of %v\n", threadID, j, k, len(refs))
 
-				keys := make([]string, 0, len(chunks))
-				chks := make([]chunk.Chunk, 0, len(chunks))
-
-				// FetchChunks requires chunks to be ordered by external key.
-				sort.Slice(chunks, func(x, y int) bool {
-					return m.schema.ExternalKey(chunks[x]) < m.schema.ExternalKey(chunks[y])
-				})
-				for _, chk := range chunks {
-					key := m.schema.ExternalKey(chk)
-					keys = append(keys, key)
-					chks = append(chks, chk)
-				}
 				for retry := 4; retry >= 0; retry-- {
-					chks, err = f.FetchChunks(m.ctx, chks, keys)
+					chks, err = m.source.FetchChunks(m.ctx, chunks)
 					if err != nil {
 						if retry == 0 {
 							log.Println(threadID, "Final error retrieving chunks, giving up:", err)
@@ -383,11 +371,11 @@ func (m *chunkMover) moveChunks(ctx context.Context, threadID int, syncRangeCh <
 				}
 				log.Println(threadID, "Batch sent successfully")
 			}
-		}
-		log.Printf("%v Finished processing sync range, %v chunks, %v bytes in %v seconds\n", threadID, totalChunks, totalBytes, time.Since(start).Seconds())
-		statsCh <- stats{
-			totalChunks: totalChunks,
-			totalBytes:  totalBytes,
+			log.Printf("%v Finished processing sync range, %v chunks, %v bytes in %v seconds\n", threadID, totalChunks, totalBytes, time.Since(start).Seconds())
+			statsCh <- stats{
+				totalChunks: totalChunks,
+				totalBytes:  totalBytes,
+			}
 		}
 	}
 }
