@@ -54,11 +54,17 @@ type Chunk struct {
 type LazyChunk struct {
 	logproto.ChunkRef
 	ExternalKey string
-	fetcher     *Fetcher
+
+	c       *Chunk
+	fetcher *Fetcher
 }
 
-func (lc LazyChunk) Chunk() Chunk {
-	return NewChunkFromRef(lc.ChunkRef)
+func (lc *LazyChunk) Chunk() *Chunk {
+	if lc.c == nil {
+		c := NewChunkFromRef(lc.ChunkRef)
+		lc.c = &c
+	}
+	return lc.c
 }
 
 // NewChunk creates a new chunk

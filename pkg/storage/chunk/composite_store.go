@@ -29,9 +29,9 @@ type Store interface {
 	PutOne(ctx context.Context, from, through model.Time, chunk Chunk) error
 	// GetChunkRefs returns the un-loaded chunks and the fetchers to be used to load them. You can load each slice of chunks ([]Chunk),
 	// using the corresponding Fetcher (fetchers[i].FetchChunks(ctx, chunks[i], ...)
-	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]LazyChunk, error)
-	FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error)
-	LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error)
+	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]*LazyChunk, error)
+	FetchChunks(ctx context.Context, chks []*LazyChunk) error
+	LazyChunksForKeys(userID string, keys []string) ([]*LazyChunk, error)
 
 	LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error)
 	LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error)
@@ -110,74 +110,54 @@ func (c compositeStore) PutOne(ctx context.Context, from, through model.Time, ch
 	})
 }
 
-func (c compositeStore) FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error) {
+func (c compositeStore) FetchChunks(ctx context.Context, chks []*LazyChunk) error {
 	if len(chks) == 0 {
-		return nil, nil
+		return nil
 	}
 	// first sort chunks by fetchers
 	sort.Slice(chks, func(i, j int) bool {
 		return chks[i].fetcher.pcfg.From.Time < chks[j].fetcher.pcfg.From.Time
 	})
 	// then map chunks to fetchers
-	chunkByFetchers := make(map[*Fetcher]*struct {
-		refs   []LazyChunk
-		result []Chunk
-	})
+	chunkByFetchers := make(map[*Fetcher][]*LazyChunk)
 	currentFetcher := chks[0].fetcher
 	currentFetcherIndex := 0
 	for i, chk := range chks {
 		if chk.fetcher != currentFetcher {
-			chunkByFetchers[currentFetcher] = &struct {
-				refs   []LazyChunk
-				result []Chunk
-			}{
-				refs: chks[currentFetcherIndex:i],
-			}
+			chunkByFetchers[currentFetcher] = chks[currentFetcherIndex:i]
 			currentFetcher = chk.fetcher
 			currentFetcherIndex = i
 		}
 	}
-	chunkByFetchers[currentFetcher] = &struct {
-		refs   []LazyChunk
-		result []Chunk
-	}{
-		refs: chks[currentFetcherIndex:],
-	}
+	chunkByFetchers[currentFetcher] = chks[currentFetcherIndex:]
 	// fetch chunks from fetchers
 	g, ctx := errgroup.WithContext(ctx)
 	for fetcher, refs := range chunkByFetchers {
 		fetcher := fetcher
 		refs := refs
 		g.Go(func() error {
-			chks, err := fetcher.FetchChunks(ctx, refs.refs)
+			err := fetcher.FetchChunks(ctx, refs)
 			if err != nil {
 				return err
 			}
-			chunkByFetchers[fetcher].result = chks
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	result := make([]Chunk, 0, len(chks))
-	for _, refs := range chunkByFetchers {
-		result = append(result, refs.result...)
-	}
-	return result, nil
+
+	return g.Wait()
 }
 
-func (c compositeStore) LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error) {
+func (c compositeStore) LazyChunksForKeys(userID string, keys []string) ([]*LazyChunk, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}
-	result := make([]LazyChunk, len(keys))
+	result := make([]*LazyChunk, len(keys))
 	for i, key := range keys {
 		ref, err := ParseExternalKey(userID, key)
 		if err != nil {
 			return nil, err
 		}
-		result[i] = LazyChunk{
+		result[i] = &LazyChunk{
 			ExternalKey: key,
 			ChunkRef:    ref,
 		}
@@ -230,9 +210,9 @@ func (c compositeStore) LabelNamesForMetricName(ctx context.Context, userID stri
 	return result.Strings(), err
 }
 
-func (c compositeStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]LazyChunk, error) {
+func (c compositeStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]*LazyChunk, error) {
 	// todo better allocations
-	result := []LazyChunk{}
+	result := []*LazyChunk{}
 	err := c.forStores(ctx, userID, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
 		chks, err := store.GetChunkRefs(innerCtx, userID, from, through, matchers...)
 		if err != nil {

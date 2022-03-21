@@ -17,9 +17,10 @@ import (
 
 // LazyChunk loads the chunk when it is accessed.
 type LazyChunk struct {
-	Chunk   chunk.Chunk
-	IsValid bool
-	Fetcher *chunk.Fetcher
+	chunk.LazyChunk
+	// Chunk chunk.Chunk
+	// IsValid bool
+	// Fetcher *chunk.Fetcher
 
 	// cache of overlapping block.
 	// We use the offset of the block as key since it's unique per chunk.
@@ -37,7 +38,6 @@ func (c *LazyChunk) Iterator(
 	pipeline log.StreamPipeline,
 	nextChunk *LazyChunk,
 ) (iter.EntryIterator, error) {
-
 	// If the chunk is not already loaded, then error out.
 	if c.Chunk.Data == nil {
 		return nil, errors.New("chunk is not loaded")
@@ -118,7 +118,6 @@ func (c *LazyChunk) SampleIterator(
 	extractor log.StreamSampleExtractor,
 	nextChunk *LazyChunk,
 ) (iter.SampleIterator, error) {
-
 	// If the chunk is not already loaded, then error out.
 	if c.Chunk.Data == nil {
 		return nil, errors.New("chunk is not loaded")

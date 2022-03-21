@@ -275,9 +275,19 @@ func (s *storeMock) SelectSamples(ctx context.Context, req logql.SelectSamplePar
 	return res.(iter.SampleIterator), args.Error(1)
 }
 
-func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*chunk.Fetcher, error) {
+func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]chunk.LazyChunk, error) {
 	args := s.Called(ctx, userID, from, through, matchers)
-	return args.Get(0).([][]chunk.Chunk), args.Get(0).([]*chunk.Fetcher), args.Error(2)
+	return args.Get(0).([]chunk.LazyChunk), args.Error(1)
+}
+
+func (s *storeMock) FetchChunks(ctx context.Context, chks []chunk.LazyChunk) ([]chunk.Chunk, error) {
+	args := s.Called(ctx, chks)
+	return args.Get(0).([]chunk.Chunk), args.Error(1)
+}
+
+func (s *storeMock) LazyChunksForKeys(userID string, keys []string) ([]chunk.LazyChunk, error) {
+	args := s.Called(userID, keys)
+	return args.Get(0).([]chunk.LazyChunk), args.Error(1)
 }
 
 func (s *storeMock) Put(ctx context.Context, chunks []chunk.Chunk) error {

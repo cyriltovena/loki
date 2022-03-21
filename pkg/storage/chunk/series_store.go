@@ -93,11 +93,11 @@ func newSeriesStore(cfg StoreConfig, pcfg PeriodConfig, schema SeriesStoreSchema
 	}, nil
 }
 
-func (c *seriesStore) FetchChunks(ctx context.Context, chks []LazyChunk) ([]Chunk, error) {
+func (c *seriesStore) FetchChunks(ctx context.Context, chks []*LazyChunk) error {
 	return c.fetcher.FetchChunks(ctx, chks)
 }
 
-func (c *seriesStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, allMatchers ...*labels.Matcher) ([]LazyChunk, error) {
+func (c *seriesStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, allMatchers ...*labels.Matcher) ([]*LazyChunk, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -143,24 +143,24 @@ func (c *seriesStore) GetChunkRefs(ctx context.Context, userID string, from, thr
 
 	// We should return an empty chunks slice if there are no chunks.
 	if len(refs) == 0 {
-		return []LazyChunk{}, nil
+		return []*LazyChunk{}, nil
 	}
 
 	return refs, nil
 }
 
-func (c *seriesStore) LazyChunksForKeys(userID string, keys []string) ([]LazyChunk, error) {
+func (c *seriesStore) LazyChunksForKeys(userID string, keys []string) ([]*LazyChunk, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}
-	result := make([]LazyChunk, len(keys))
+	result := make([]*LazyChunk, len(keys))
 	for i, key := range keys {
 		ref, err := parseNewExternalKey(userID, key)
 		if err != nil {
 			return nil, err
 		}
 
-		result[i] = LazyChunk{
+		result[i] = &LazyChunk{
 			ExternalKey: key,
 			ChunkRef:    ref,
 			fetcher:     c.fetcher,
@@ -284,12 +284,12 @@ func (c *seriesStore) lookupLabelNamesByChunks(ctx context.Context, from, throug
 	chunksPerQuery.Observe(float64(len(filtered)))
 
 	// Now fetch the actual chunk data from Memcache / S3
-	allChunks, err := c.fetcher.FetchChunks(ctx, filtered)
+	err = c.fetcher.FetchChunks(ctx, filtered)
 	if err != nil {
 		level.Error(log).Log("msg", "FetchChunks", "err", err)
 		return nil, err
 	}
-	return labelNamesFromChunks(allChunks), nil
+	return labelNamesFromChunks(filtered), nil
 }
 
 func (c *seriesStore) lookupSeriesByMetricNameMatchers(ctx context.Context, from, through model.Time, userID, metricName string, matchers []*labels.Matcher) ([]string, error) {
@@ -470,11 +470,12 @@ func (c *seriesStore) PutOne(ctx context.Context, from, through model.Time, chun
 	}
 
 	chunks := []Chunk{chunk}
-	refs := []LazyChunk{
+	refs := []*LazyChunk{
 		{
 			ChunkRef:    chunk.ChunkRef,
 			fetcher:     c.fetcher,
 			ExternalKey: c.periodCfg.ExternalKey(chunk.ChunkRef),
+			c:           &chunk,
 		},
 	}
 
@@ -506,7 +507,7 @@ func (c *seriesStore) PutOne(ctx context.Context, from, through model.Time, chun
 
 	// we already have the chunk in the cache so don't write it back to the cache.
 	if writeChunk {
-		if cacheErr := c.fetcher.writeBackCache(ctx, chunks, refs); cacheErr != nil {
+		if cacheErr := c.fetcher.writeBackCache(ctx, refs); cacheErr != nil {
 			level.Warn(log).Log("msg", "could not store chunks in chunk cache", "err", cacheErr)
 		}
 	}

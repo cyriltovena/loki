@@ -393,18 +393,14 @@ func TestChunkStore_getMetricNameChunks(t *testing.T) {
 
 					refs, err := store.GetChunkRefs(ctx, userID, now.Add(-time.Hour), now, matchers...)
 					require.NoError(t, err)
-					chunks, err := store.FetchChunks(ctx, refs)
+					err = store.FetchChunks(ctx, refs)
 					require.NoError(t, err)
 
 					filtered := []Chunk{}
-				outer:
-					for _, c := range chunks {
-						for _, matcher := range matchers {
-							if !matcher.Matches(c.Metric.Get(matcher.Name)) {
-								continue outer
-							}
+					for _, c := range refs {
+						if c.Chunk().Matches(matchers...) {
+							filtered = append(filtered, *c.Chunk())
 						}
-						filtered = append(filtered, c)
 					}
 
 					if !reflect.DeepEqual(tc.expect, filtered) {
@@ -472,14 +468,14 @@ func TestChunkStoreRandom(t *testing.T) {
 				}
 				refs, err := store.GetChunkRefs(ctx, userID, startTime, endTime, matchers...)
 				require.NoError(t, err)
-				chunks, err := store.FetchChunks(ctx, refs)
+				err = store.FetchChunks(ctx, refs)
 				require.NoError(t, err)
 
 				// We need to check that each chunk is in the time range
-				for _, chunk := range chunks {
-					assert.False(t, chunk.From.After(endTime))
-					assert.False(t, chunk.Through.Before(startTime))
-					samples, err := chunk.Samples(chunk.From, chunk.Through)
+				for _, ref := range refs {
+					assert.False(t, ref.Chunk().From.After(endTime))
+					assert.False(t, ref.Chunk().Through.Before(startTime))
+					samples, err := ref.Chunk().Samples(ref.Chunk().From, ref.Chunk().Through)
 					assert.NoError(t, err)
 					assert.Equal(t, 1, len(samples))
 					// TODO verify chunk contents
@@ -487,7 +483,7 @@ func TestChunkStoreRandom(t *testing.T) {
 
 				// And check we got all the chunks we want
 				numChunks := (end / chunkLen) - (start / chunkLen) + 1
-				assert.Equal(t, int(numChunks), len(chunks))
+				assert.Equal(t, int(numChunks), len(refs))
 			}
 		})
 	}
@@ -543,21 +539,21 @@ func TestChunkStoreLeastRead(t *testing.T) {
 
 		refs, err := store.GetChunkRefs(ctx, userID, startTime, endTime, matchers...)
 		require.NoError(t, err)
-		chunks, err := store.FetchChunks(ctx, refs)
+		err = store.FetchChunks(ctx, refs)
 		require.NoError(t, err)
 
 		// We need to check that each chunk is in the time range
-		for _, chunk := range chunks {
-			assert.False(t, chunk.From.After(endTime))
-			assert.False(t, chunk.Through.Before(startTime))
-			samples, err := chunk.Samples(chunk.From, chunk.Through)
+		for _, ref := range refs {
+			assert.False(t, ref.Chunk().From.After(endTime))
+			assert.False(t, ref.Chunk().Through.Before(startTime))
+			samples, err := ref.Chunk().Samples(ref.Chunk().From, ref.Chunk().Through)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(samples))
 		}
 
 		// And check we got all the chunks we want
 		numChunks := 24 - (start / chunkLen) + 1
-		assert.Equal(t, int(numChunks), len(chunks))
+		assert.Equal(t, int(numChunks), len(refs))
 	}
 }
 

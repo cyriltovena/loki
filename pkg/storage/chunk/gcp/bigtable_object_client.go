@@ -86,19 +86,19 @@ func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Lazy
 	defer sp.Finish()
 	sp.LogFields(otlog.Int("chunks requested", len(input)))
 
-	chunks := map[string]map[string]chunk.Chunk{}
+	refs := map[string]map[string]*chunk.LazyChunk{}
 	keys := map[string]bigtable.RowList{}
-	for _, c := range input {
+	for i, c := range input {
 		tableName, err := s.schemaCfg.ChunkTableFor(c.From)
 		if err != nil {
 			return nil, err
 		}
 		key := c.ExternalKey
 		keys[tableName] = append(keys[tableName], key)
-		if _, ok := chunks[tableName]; !ok {
-			chunks[tableName] = map[string]chunk.Chunk{}
+		if _, ok := refs[tableName]; !ok {
+			refs[tableName] = map[string]*chunk.LazyChunk{}
 		}
-		chunks[tableName][key] = c.Chunk()
+		refs[tableName][key] = &input[i]
 	}
 
 	outs := make(chan chunk.Chunk, len(input))
@@ -106,9 +106,9 @@ func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Lazy
 
 	for tableName := range keys {
 		var (
-			table  = s.client.Open(tableName)
-			keys   = keys[tableName]
-			chunks = chunks[tableName]
+			table = s.client.Open(tableName)
+			keys  = keys[tableName]
+			refs  = refs[tableName]
 		)
 
 		for i := 0; i < len(keys); i += maxRowReads {
@@ -121,12 +121,12 @@ func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Lazy
 
 				// rows are returned in key order, not order in row list
 				err := table.ReadRows(ctx, page, func(row bigtable.Row) bool {
-					chunk, ok := chunks[row.Key()]
+					ref, ok := refs[row.Key()]
 					if !ok {
 						processingErr = errors.WithStack(fmt.Errorf("Got row for unknown chunk: %s", row.Key()))
 						return false
 					}
-
+					chunk := ref.Chunk()
 					err := chunk.Decode(decodeContext, row[columnFamily][0].Value)
 					if err != nil {
 						processingErr = err
@@ -134,7 +134,7 @@ func (s *bigtableObjectClient) GetChunks(ctx context.Context, input []chunk.Lazy
 					}
 
 					receivedChunks++
-					outs <- chunk
+					outs <- *chunk
 					return true
 				})
 

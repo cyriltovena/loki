@@ -420,10 +420,10 @@ func (a dynamoDBStorageClient) getDynamoDBChunks(ctx context.Context, refs []chu
 	log, ctx := spanlogger.New(ctx, "getDynamoDBChunks", ot.Tag{Key: "numChunks", Value: len(refs)})
 	defer log.Span.Finish()
 	outstanding := dynamoDBReadRequest{}
-	chunksByKey := map[string]chunk.Chunk{}
+	chunksByKey := map[string]chunk.LazyChunk{}
 	for _, ref := range refs {
 		key := ref.ExternalKey
-		chunksByKey[key] = ref.Chunk()
+		chunksByKey[key] = ref
 		tableName, err := a.schemaCfg.ChunkTableFor(ref.From)
 		if err != nil {
 			return nil, log.Error(err)
@@ -503,7 +503,7 @@ func (a dynamoDBStorageClient) getDynamoDBChunks(ctx context.Context, refs []chu
 	return result, nil
 }
 
-func processChunkResponse(response *dynamodb.BatchGetItemOutput, chunksByKey map[string]chunk.Chunk) ([]chunk.Chunk, error) {
+func processChunkResponse(response *dynamodb.BatchGetItemOutput, chunksByKey map[string]chunk.LazyChunk) ([]chunk.Chunk, error) {
 	result := []chunk.Chunk{}
 	decodeContext := chunk.NewDecodeContext()
 	for _, items := range response.Responses {
@@ -513,7 +513,7 @@ func processChunkResponse(response *dynamodb.BatchGetItemOutput, chunksByKey map
 				return nil, fmt.Errorf("Got response from DynamoDB with no hash key: %+v", item)
 			}
 
-			chunk, ok := chunksByKey[*key.S]
+			ref, ok := chunksByKey[*key.S]
 			if !ok {
 				return nil, fmt.Errorf("Got response from DynamoDB with chunk I didn't ask for: %s", *key.S)
 			}
@@ -523,11 +523,12 @@ func processChunkResponse(response *dynamodb.BatchGetItemOutput, chunksByKey map
 				return nil, fmt.Errorf("Got response from DynamoDB with no value: %+v", item)
 			}
 
+			chunk := ref.Chunk()
 			if err := chunk.Decode(decodeContext, buf.B); err != nil {
 				return nil, err
 			}
 
-			result = append(result, chunk)
+			result = append(result, *chunk)
 		}
 	}
 	return result, nil

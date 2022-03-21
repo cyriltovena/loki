@@ -333,14 +333,14 @@ func (c *baseStore) parseIndexEntries(_ context.Context, entries []IndexEntry, m
 	return result, nil
 }
 
-func (c *baseStore) convertChunkIDsToRefs(_ context.Context, userID string, chunkIDs []string) ([]LazyChunk, error) {
-	refs := make([]LazyChunk, 0, len(chunkIDs))
+func (c *baseStore) convertChunkIDsToRefs(_ context.Context, userID string, chunkIDs []string) ([]*LazyChunk, error) {
+	refs := make([]*LazyChunk, 0, len(chunkIDs))
 	for _, chunkID := range chunkIDs {
 		ref, err := ParseExternalKey(userID, chunkID)
 		if err != nil {
 			return nil, err
 		}
-		refs = append(refs, LazyChunk{
+		refs = append(refs, &LazyChunk{
 			ChunkRef:    ref,
 			fetcher:     c.fetcher,
 			ExternalKey: chunkID,

@@ -372,29 +372,27 @@ func (m *MockStorage) PutChunks(_ context.Context, chunks []Chunk) error {
 }
 
 // GetChunks implements StorageClient.
-func (m *MockStorage) GetChunks(ctx context.Context, refs []LazyChunk) ([]Chunk, error) {
+func (m *MockStorage) GetChunks(ctx context.Context, refs []*LazyChunk) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if m.mode == MockStorageModeWriteOnly {
-		return nil, errPermissionDenied
+		return errPermissionDenied
 	}
 
 	decodeContext := NewDecodeContext()
-	result := []Chunk{}
-	for _, ref := range refs {
+	for i, ref := range refs {
 		key := m.periodCfg.ExternalKey(ref.ChunkRef)
 		buf, ok := m.objects[key]
 		if !ok {
-			return nil, errStorageObjectNotFound
+			return errStorageObjectNotFound
 		}
-		chunk := ref.Chunk()
+		chunk := refs[i].Chunk()
 		if err := chunk.Decode(decodeContext, buf); err != nil {
-			return nil, err
+			return err
 		}
-		result = append(result, chunk)
 	}
-	return result, nil
+	return nil
 }
 
 // DeleteChunk implements StorageClient.

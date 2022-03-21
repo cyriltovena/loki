@@ -18,13 +18,13 @@ var decodeContextPool = sync.Pool{
 }
 
 // GetParallelChunks fetches chunks in parallel (up to maxParallel).
-func GetParallelChunks(ctx context.Context, maxParallel int, refs []chunk.LazyChunk, f func(context.Context, *chunk.DecodeContext, chunk.Chunk, string) (chunk.Chunk, error)) ([]chunk.Chunk, error) {
+func GetParallelChunks(ctx context.Context, maxParallel int, refs []chunk.LazyChunk, f func(context.Context, *chunk.DecodeContext, chunk.LazyChunk) error) error {
 	log, ctx := spanlogger.New(ctx, "GetParallelChunks")
 	defer log.Finish()
 	log.LogFields(otlog.Int("requested", len(refs)))
 
 	if ctx.Err() != nil {
-		return nil, ctx.Err()
+		return ctx.Err()
 	}
 
 	queuedChunks := make(chan chunk.LazyChunk)
