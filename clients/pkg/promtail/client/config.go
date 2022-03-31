@@ -45,12 +45,12 @@ type Config struct {
 	// single tenant mode)
 	TenantID string `yaml:"tenant_id"`
 
-	// todo: real struct
-	WAL struct {
-		Dir                string        `yaml:"dir"`
-		CheckpointDuration time.Duration `yaml:"checkpoint_duration"`
-		PerTenant          bool          `yaml:"per_tenant"`
-	} `yaml:"wal"`
+	WAL WALConfig `yaml:"wal"`
+}
+
+type WALConfig struct {
+	Dir     string `yaml:"dir"`
+	Enabled bool   `yaml:"enabled"`
 }
 
 // RegisterFlags with prefix registers flags where every name is prefixed by
