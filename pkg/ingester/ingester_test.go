@@ -592,11 +592,11 @@ func Test_InMemoryLabels(t *testing.T) {
 
 func Test_DedupeIngester(t *testing.T) {
 	var (
-		requests      = int64(400)
-		streamCount   = int64(20)
+		requests      = int64(10)
+		streamCount   = int64(1)
 		streams       []labels.Labels
 		streamHashes  []uint64
-		ingesterCount = 100
+		ingesterCount = 20
 
 		ingesterConfig = defaultIngesterTestConfig(t)
 		ctx, _         = user.InjectIntoGRPCRequest(user.InjectOrgID(context.Background(), "foo"))
@@ -618,7 +618,9 @@ func Test_DedupeIngester(t *testing.T) {
 
 	for i := int64(0); i < requests; i++ {
 		for _, ing := range ingesterSet {
-			_, err := ing.Push(ctx, buildPushRequest(i, streams))
+			// _, err := ing.Push(ctx, buildPushRequest(i, streams))
+			// require.NoError(t, err)
+			_, err := ing.Push(ctx, buildPushJsonRequest(i, streams))
 			require.NoError(t, err)
 		}
 	}
@@ -627,10 +629,10 @@ func Test_DedupeIngester(t *testing.T) {
 		iterators := make([]iter.EntryIterator, 0, len(ingesterSet))
 		for _, client := range ingesterSet {
 			stream, err := client.Query(ctx, &logproto.QueryRequest{
-				Selector:  `{foo="bar"} | label_format bar=""`, // making it difficult to dedupe by removing uncommon label.
+				Selector:  `{foo="bar"} | json`, // making it difficult to dedupe by removing uncommon label.
 				Start:     time.Unix(0, 0),
 				End:       time.Unix(0, requests+1),
-				Limit:     uint32(requests * streamCount),
+				Limit:     uint32(requests * streamCount * 3),
 				Direction: logproto.BACKWARD,
 			})
 			require.NoError(t, err)
@@ -639,112 +641,146 @@ func Test_DedupeIngester(t *testing.T) {
 		it := iter.NewMergeEntryIterator(ctx, iterators, logproto.BACKWARD)
 
 		for i := requests - 1; i >= 0; i-- {
-			actualHashes := []uint64{}
+			// actualHashes := []uint64{}
 			for j := 0; j < int(streamCount); j++ {
 				require.True(t, it.Next())
-				require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
-				require.Equal(t, i, it.Entry().Timestamp.UnixNano())
-				require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
-				actualHashes = append(actualHashes, it.StreamHash())
+				t.Log(it.Entry())
+				require.True(t, it.Next())
+				t.Log(it.Entry())
+				// require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
+				// require.Equal(t, i, it.Entry().Timestamp.UnixNano())
+				// require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
+				// actualHashes = append(actualHashes, it.StreamHash())
 			}
-			sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
-			require.Equal(t, streamHashes, actualHashes)
+			// sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
+			// require.Equal(t, streamHashes, actualHashes)
 		}
 		require.False(t, it.Next())
 		require.NoError(t, it.Error())
 	})
-	t.Run("forward log", func(t *testing.T) {
-		iterators := make([]iter.EntryIterator, 0, len(ingesterSet))
-		for _, client := range ingesterSet {
-			stream, err := client.Query(ctx, &logproto.QueryRequest{
-				Selector:  `{foo="bar"} | label_format bar=""`, // making it difficult to dedupe by removing uncommon label.
-				Start:     time.Unix(0, 0),
-				End:       time.Unix(0, requests+1),
-				Limit:     uint32(requests * streamCount),
-				Direction: logproto.FORWARD,
-			})
-			require.NoError(t, err)
-			iterators = append(iterators, iter.NewQueryClientIterator(stream, logproto.FORWARD))
-		}
-		it := iter.NewMergeEntryIterator(ctx, iterators, logproto.FORWARD)
 
-		for i := int64(0); i < requests; i++ {
-			actualHashes := []uint64{}
-			for j := 0; j < int(streamCount); j++ {
-				require.True(t, it.Next())
-				require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
-				require.Equal(t, i, it.Entry().Timestamp.UnixNano())
-				require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
-				actualHashes = append(actualHashes, it.StreamHash())
-			}
-			sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
-			require.Equal(t, streamHashes, actualHashes)
-		}
-		require.False(t, it.Next())
-		require.NoError(t, it.Error())
-	})
-	t.Run("sum by metrics", func(t *testing.T) {
-		iterators := make([]iter.SampleIterator, 0, len(ingesterSet))
-		for _, client := range ingesterSet {
-			stream, err := client.QuerySample(ctx, &logproto.SampleQueryRequest{
-				Selector: `sum(rate({foo="bar"}[1m])) by (bar)`,
-				Start:    time.Unix(0, 0),
-				End:      time.Unix(0, requests+1),
-			})
-			require.NoError(t, err)
-			iterators = append(iterators, iter.NewSampleQueryClientIterator(stream))
-		}
-		it := iter.NewMergeSampleIterator(ctx, iterators)
-		var expectedLabels []string
-		for _, s := range streams {
-			expectedLabels = append(expectedLabels, s.WithoutLabels("foo").String())
-		}
-		sort.Strings(expectedLabels)
-		for i := int64(0); i < requests; i++ {
-			labels := []string{}
-			actualHashes := []uint64{}
-			for j := 0; j < int(streamCount); j++ {
-				require.True(t, it.Next())
-				require.Equal(t, float64(1), it.Sample().Value)
-				require.Equal(t, i, it.Sample().Timestamp)
-				labels = append(labels, it.Labels())
-				actualHashes = append(actualHashes, it.StreamHash())
-			}
-			sort.Strings(labels)
-			sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
-			require.Equal(t, expectedLabels, labels)
-			require.Equal(t, streamHashes, actualHashes)
-		}
-		require.False(t, it.Next())
-		require.NoError(t, it.Error())
-	})
-	t.Run("sum metrics", func(t *testing.T) {
-		iterators := make([]iter.SampleIterator, 0, len(ingesterSet))
-		for _, client := range ingesterSet {
-			stream, err := client.QuerySample(ctx, &logproto.SampleQueryRequest{
-				Selector: `sum(rate({foo="bar"}[1m]))`,
-				Start:    time.Unix(0, 0),
-				End:      time.Unix(0, requests+1),
-			})
-			require.NoError(t, err)
-			iterators = append(iterators, iter.NewSampleQueryClientIterator(stream))
-		}
-		it := iter.NewMergeSampleIterator(ctx, iterators)
-		for i := int64(0); i < requests; i++ {
-			actualHashes := []uint64{}
-			for j := 0; j < int(streamCount); j++ {
-				require.True(t, it.Next())
-				require.Equal(t, float64(1), it.Sample().Value)
-				require.Equal(t, i, it.Sample().Timestamp)
-				require.Equal(t, "{}", it.Labels())
-				actualHashes = append(actualHashes, it.StreamHash())
-			}
-			sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
-			require.Equal(t, streamHashes, actualHashes)
-		}
-		require.False(t, it.Next())
-		require.NoError(t, it.Error())
-	})
+	// t.Run("backward log", func(t *testing.T) {
+	// 	iterators := make([]iter.EntryIterator, 0, len(ingesterSet))
+	// 	for _, client := range ingesterSet {
+	// 		stream, err := client.Query(ctx, &logproto.QueryRequest{
+	// 			Selector:  `{foo="bar"} | label_format bar=""`, // making it difficult to dedupe by removing uncommon label.
+	// 			Start:     time.Unix(0, 0),
+	// 			End:       time.Unix(0, requests+1),
+	// 			Limit:     uint32(requests * streamCount),
+	// 			Direction: logproto.BACKWARD,
+	// 		})
+	// 		require.NoError(t, err)
+	// 		iterators = append(iterators, iter.NewQueryClientIterator(stream, logproto.BACKWARD))
+	// 	}
+	// 	it := iter.NewMergeEntryIterator(ctx, iterators, logproto.BACKWARD)
+
+	// 	for i := requests - 1; i >= 0; i-- {
+	// 		actualHashes := []uint64{}
+	// 		for j := 0; j < int(streamCount); j++ {
+	// 			require.True(t, it.Next())
+	// 			require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
+	// 			require.Equal(t, i, it.Entry().Timestamp.UnixNano())
+	// 			require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
+	// 			actualHashes = append(actualHashes, it.StreamHash())
+	// 		}
+	// 		sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
+	// 		require.Equal(t, streamHashes, actualHashes)
+	// 	}
+	// 	require.False(t, it.Next())
+	// 	require.NoError(t, it.Error())
+	// })
+	// t.Run("forward log", func(t *testing.T) {
+	// 	iterators := make([]iter.EntryIterator, 0, len(ingesterSet))
+	// 	for _, client := range ingesterSet {
+	// 		stream, err := client.Query(ctx, &logproto.QueryRequest{
+	// 			Selector:  `{foo="bar"} | label_format bar=""`, // making it difficult to dedupe by removing uncommon label.
+	// 			Start:     time.Unix(0, 0),
+	// 			End:       time.Unix(0, requests+1),
+	// 			Limit:     uint32(requests * streamCount),
+	// 			Direction: logproto.FORWARD,
+	// 		})
+	// 		require.NoError(t, err)
+	// 		iterators = append(iterators, iter.NewQueryClientIterator(stream, logproto.FORWARD))
+	// 	}
+	// 	it := iter.NewMergeEntryIterator(ctx, iterators, logproto.FORWARD)
+
+	// 	for i := int64(0); i < requests; i++ {
+	// 		actualHashes := []uint64{}
+	// 		for j := 0; j < int(streamCount); j++ {
+	// 			require.True(t, it.Next())
+	// 			require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
+	// 			require.Equal(t, i, it.Entry().Timestamp.UnixNano())
+	// 			require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
+	// 			actualHashes = append(actualHashes, it.StreamHash())
+	// 		}
+	// 		sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
+	// 		require.Equal(t, streamHashes, actualHashes)
+	// 	}
+	// 	require.False(t, it.Next())
+	// 	require.NoError(t, it.Error())
+	// })
+	// t.Run("sum by metrics", func(t *testing.T) {
+	// 	iterators := make([]iter.SampleIterator, 0, len(ingesterSet))
+	// 	for _, client := range ingesterSet {
+	// 		stream, err := client.QuerySample(ctx, &logproto.SampleQueryRequest{
+	// 			Selector: `sum(rate({foo="bar"}[1m])) by (bar)`,
+	// 			Start:    time.Unix(0, 0),
+	// 			End:      time.Unix(0, requests+1),
+	// 		})
+	// 		require.NoError(t, err)
+	// 		iterators = append(iterators, iter.NewSampleQueryClientIterator(stream))
+	// 	}
+	// 	it := iter.NewMergeSampleIterator(ctx, iterators)
+	// 	var expectedLabels []string
+	// 	for _, s := range streams {
+	// 		expectedLabels = append(expectedLabels, s.WithoutLabels("foo").String())
+	// 	}
+	// 	sort.Strings(expectedLabels)
+	// 	for i := int64(0); i < requests; i++ {
+	// 		labels := []string{}
+	// 		actualHashes := []uint64{}
+	// 		for j := 0; j < int(streamCount); j++ {
+	// 			require.True(t, it.Next())
+	// 			require.Equal(t, float64(1), it.Sample().Value)
+	// 			require.Equal(t, i, it.Sample().Timestamp)
+	// 			labels = append(labels, it.Labels())
+	// 			actualHashes = append(actualHashes, it.StreamHash())
+	// 		}
+	// 		sort.Strings(labels)
+	// 		sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
+	// 		require.Equal(t, expectedLabels, labels)
+	// 		require.Equal(t, streamHashes, actualHashes)
+	// 	}
+	// 	require.False(t, it.Next())
+	// 	require.NoError(t, it.Error())
+	// })
+	// t.Run("sum metrics", func(t *testing.T) {
+	// 	iterators := make([]iter.SampleIterator, 0, len(ingesterSet))
+	// 	for _, client := range ingesterSet {
+	// 		stream, err := client.QuerySample(ctx, &logproto.SampleQueryRequest{
+	// 			Selector: `sum(rate({foo="bar"}[1m]))`,
+	// 			Start:    time.Unix(0, 0),
+	// 			End:      time.Unix(0, requests+1),
+	// 		})
+	// 		require.NoError(t, err)
+	// 		iterators = append(iterators, iter.NewSampleQueryClientIterator(stream))
+	// 	}
+	// 	it := iter.NewMergeSampleIterator(ctx, iterators)
+	// 	for i := int64(0); i < requests; i++ {
+	// 		actualHashes := []uint64{}
+	// 		for j := 0; j < int(streamCount); j++ {
+	// 			require.True(t, it.Next())
+	// 			require.Equal(t, float64(1), it.Sample().Value)
+	// 			require.Equal(t, i, it.Sample().Timestamp)
+	// 			require.Equal(t, "{}", it.Labels())
+	// 			actualHashes = append(actualHashes, it.StreamHash())
+	// 		}
+	// 		sort.Slice(actualHashes, func(i, j int) bool { return actualHashes[i] < actualHashes[j] })
+	// 		require.Equal(t, streamHashes, actualHashes)
+	// 	}
+	// 	require.False(t, it.Next())
+	// 	require.NoError(t, it.Error())
+	// })
 }
 
 type ingesterClient struct {
@@ -815,6 +851,28 @@ func buildPushRequest(ts int64, streams []labels.Labels) *logproto.PushRequest {
 				{
 					Timestamp: time.Unix(0, ts),
 					Line:      fmt.Sprintf("line %d", ts),
+				},
+			},
+		})
+	}
+
+	return req
+}
+
+func buildPushJsonRequest(ts int64, streams []labels.Labels) *logproto.PushRequest {
+	req := &logproto.PushRequest{}
+
+	for _, stream := range streams {
+		req.Streams = append(req.Streams, logproto.Stream{
+			Labels: stream.String(),
+			Entries: []logproto.Entry{
+				{
+					Timestamp: time.Unix(0, ts),
+					Line:      `{"buildid":"20220401.1","source":"stdout","accountid":"1231231231232113","container_name":"/ecs-foo-bar-rick-api-298-foo-bar-rick-api-96d2ce89c6effcfd6000","log":{"Timestamp":"2022-04-04T12:21:42.2655054+00:00","Level":"Information","MessageTemplate":"Timing Details {@CompanyId} {@Timings}","Properties":{"CompanyId":null,"Timings":{"ElapsedMilliseconds":0,"ApiTimings":{"securityresponseheadersmiddlewarebefore":0,"authenticationmiddlewarebefore":0,"cannedresponsemiddlewarebefore":0,"urlencodingcheckingmiddlewarebefore":0,"urlencodingcheckingmiddlewareinvoke":0,"cannedresponsemiddlewareinvoke":0,"authenticationmiddlewareinvoke":0,"securityresponseheadersmiddlewareinvoke":0},"CoreTimings":null},"dd_service":"foo-bar-rick-api","dd_version":"20220401.1","dd_env":"dev","dd_trace_id":"1231231231265489129","dd_span_id":"1936662762626343116","SourceContext":"Foo.Bar.Api.System.Rick.TimingMiddleware","CorrelationId":"2f1f6feb-18b7-4689-ba86-def8e53fb2d7","ClientIPAddress":"::ffff:172.10.3.178","AmazonTraceId":"","RequestId":"0HMGJR1TLUE0F:00000002","RequestPath":"/ishealthy","ConnectionId":"SDAWQDWQDWASDDWQ","AppIsInEC2Instance":true,"AvailabilityZone":"us-west-2b","AwsRegion":"us-west-2","InstanceId":"i-0c3adwdqdw12d12d","InstanceIPAddresses":"172.10.6.179","Environment":"Development","MachineName":"123dqwe123fsa","UtcTimestamp":"2022-04-04T12:21:42.2655054Z"}},"darkenv":"false","container_id":"b2131cb1580053152053387ed6be760cf5d9a5045bbe4d486733226eb667b093","ddsource":"aws-ecs-containers","service":"foo-bar-rick-api","hostname":"ip-127.0.0.1.us-west-2.compute.internal"}`,
+				},
+				{
+					Timestamp: time.Unix(0, ts),
+					Line:      `{"container_id":"3c82a14a5cc54d1cd1456057a74d87acdwqdq4ba95ba7b0b955c23df0e5","container_name":"/ecs-foo-bar-rick-api-298-foo-bar-rick-api-f6c7ec90c8fd85ee9701","source":"stdout","buildid":"20220401.1","accountid":"15612312313065","log":{"Timestamp":"2022-04-04T12:21:42.3015056+00:00","Level":"Information","MessageTemplate":"{TaskName}: Periodical task completed successfully","Properties":{"TaskName":"KeepWarmTask","dd_service":"foo-bar-rick-api","dd_version":"20220401.1","dd_env":"dev","SourceContext":"KeepWarmTask","AppIsInEC2Instance":true,"AvailabilityZone":"us-west-2b","AwsRegion":"us-west-2","InstanceId":"i-1231231d1","InstanceIPAddresses":"127.0.0.1","Environment":"Development","MachineName":"123123ddda14a5cc5","UtcTimestamp":"2022-04-04T12:21:42.3015056Z"}},"darkenv":"false","ddsource":"aws-ecs-containers","service":"foo-bar-rick-api","hostname":"ip-127.0.0.1.us-west-2.compute.internal"}`,
 				},
 			},
 		})

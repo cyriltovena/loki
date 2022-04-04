@@ -81,6 +81,9 @@ type iteratorSortHeap struct {
 func (h iteratorSortHeap) Less(i, j int) bool {
 	t1, t2 := h.iteratorHeap[i].Entry().Timestamp.UnixNano(), h.iteratorHeap[j].Entry().Timestamp.UnixNano()
 	if t1 == t2 {
+		if h.iteratorHeap[i].StreamHash() == h.iteratorHeap[j].StreamHash() {
+			return h.iteratorHeap[i].Entry().Line < h.iteratorHeap[j].Entry().Line
+		}
 		return h.iteratorHeap[i].StreamHash() < h.iteratorHeap[j].StreamHash()
 	}
 	if h.byAscendingTime {
@@ -329,7 +332,13 @@ func (i *entrySortIterator) lessByIndex(k, j int) bool {
 		// frontend which were sharded. Prefer to use the underlying stream hash when available,
 		// which is needed in deduping code, but defer to label sorting when it's not present.
 		if i.is[k].StreamHash() == 0 {
+			if i.is[k].Labels() == i.is[j].Labels() {
+				return i.is[k].Entry().Line < i.is[j].Entry().Line
+			}
 			return i.is[k].Labels() < i.is[j].Labels()
+		}
+		if i.is[k].StreamHash() == i.is[j].StreamHash() {
+			return i.is[k].Entry().Line < i.is[j].Entry().Line
 		}
 		return i.is[k].StreamHash() < i.is[j].StreamHash()
 	}
