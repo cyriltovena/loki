@@ -592,11 +592,11 @@ func Test_InMemoryLabels(t *testing.T) {
 
 func Test_DedupeIngester(t *testing.T) {
 	var (
-		requests      = int64(10)
-		streamCount   = int64(1)
+		requests      = int64(200)
+		streamCount   = int64(20)
 		streams       []labels.Labels
 		streamHashes  []uint64
-		ingesterCount = 20
+		ingesterCount = 100
 
 		ingesterConfig = defaultIngesterTestConfig(t)
 		ctx, _         = user.InjectIntoGRPCRequest(user.InjectOrgID(context.Background(), "foo"))
@@ -644,9 +644,7 @@ func Test_DedupeIngester(t *testing.T) {
 			// actualHashes := []uint64{}
 			for j := 0; j < int(streamCount); j++ {
 				require.True(t, it.Next())
-				t.Log(it.Entry())
 				require.True(t, it.Next())
-				t.Log(it.Entry())
 				// require.Equal(t, fmt.Sprintf("line %d", i), it.Entry().Line)
 				// require.Equal(t, i, it.Entry().Timestamp.UnixNano())
 				// require.Equal(t, `{bar="", foo="bar"}`, it.Labels())
