@@ -4790,7 +4790,7 @@ func (c *EC2) CreateFleetRequest(input *CreateFleetInput) (req *request.Request,
 // You can create a single EC2 Fleet that includes multiple launch specifications
 // that vary by instance type, AMI, Availability Zone, or subnet.
 //
-// For more information, see Launching an EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet.html)
+// For more information, see EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet.html)
 // in the Amazon EC2 User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -5038,6 +5038,12 @@ func (c *EC2) CreateImageRequest(input *CreateImageInput) (req *request.Request,
 //
 // Creates an Amazon EBS-backed AMI from an Amazon EBS-backed instance that
 // is either running or stopped.
+//
+// By default, Amazon EC2 shuts down and reboots the instance before creating
+// the AMI to ensure that everything on the instance is stopped and in a consistent
+// state during the creation process. If you're confident that your instance
+// is in a consistent state appropriate for AMI creation, use the NoReboot parameter
+// to prevent Amazon EC2 from shutting down and rebooting the instance.
 //
 // If you customized your instance with instance store volumes or Amazon EBS
 // volumes in addition to the root device volume, the new AMI contains block
@@ -10277,7 +10283,7 @@ func (c *EC2) DeleteFleetsRequest(input *DeleteFleetsInput) (req *request.Reques
 //    * Up to 1000 instances can be terminated in a single request to delete
 //    instant fleets.
 //
-// For more information, see Deleting an EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/manage-ec2-fleet.html#delete-fleet)
+// For more information, see Delete an EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/manage-ec2-fleet.html#delete-fleet)
 // in the Amazon EC2 User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -14806,9 +14812,16 @@ func (c *EC2) DeregisterImageRequest(input *DeregisterImageInput) (req *request.
 // DeregisterImage API operation for Amazon Elastic Compute Cloud.
 //
 // Deregisters the specified AMI. After you deregister an AMI, it can't be used
-// to launch new instances; however, it doesn't affect any instances that you've
-// already launched from the AMI. You'll continue to incur usage costs for those
-// instances until you terminate them.
+// to launch new instances.
+//
+// If you deregister an AMI that matches a Recycle Bin retention rule, the AMI
+// is retained in the Recycle Bin for the specified retention period. For more
+// information, see Recycle Bin (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recycle-bin.html)
+// in the Amazon Elastic Compute Cloud User Guide.
+//
+// When you deregister an AMI, it doesn't affect any instances that you've already
+// launched from the AMI. You'll continue to incur usage costs for those instances
+// until you terminate them.
 //
 // When you deregister an Amazon EBS-backed AMI, it doesn't affect the snapshot
 // that was created for the root volume of the instance during the AMI creation
@@ -14886,8 +14899,6 @@ func (c *EC2) DeregisterInstanceEventNotificationAttributesRequest(input *Deregi
 }
 
 // DeregisterInstanceEventNotificationAttributes API operation for Amazon Elastic Compute Cloud.
-//
-// c
 //
 // Deregisters tag keys to prevent tags that have the specified tag keys from
 // being included in scheduled event notifications for resources in the Region.
@@ -15114,8 +15125,8 @@ func (c *EC2) DescribeAccountAttributesRequest(input *DescribeAccountAttributesI
 
 // DescribeAccountAttributes API operation for Amazon Elastic Compute Cloud.
 //
-// Describes attributes of your AWS account. The following are the supported
-// account attributes:
+// Describes attributes of your Amazon Web Services account. The following are
+// the supported account attributes:
 //
 //    * supported-platforms: Indicates whether your account can launch instances
 //    into EC2-Classic and EC2-VPC, or only into EC2-VPC.
@@ -17789,6 +17800,138 @@ func (c *EC2) DescribeExportTasksWithContext(ctx aws.Context, input *DescribeExp
 	return out, req.Send()
 }
 
+const opDescribeFastLaunchImages = "DescribeFastLaunchImages"
+
+// DescribeFastLaunchImagesRequest generates a "aws/request.Request" representing the
+// client's request for the DescribeFastLaunchImages operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DescribeFastLaunchImages for more information on using the DescribeFastLaunchImages
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DescribeFastLaunchImagesRequest method.
+//    req, resp := client.DescribeFastLaunchImagesRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/DescribeFastLaunchImages
+func (c *EC2) DescribeFastLaunchImagesRequest(input *DescribeFastLaunchImagesInput) (req *request.Request, output *DescribeFastLaunchImagesOutput) {
+	op := &request.Operation{
+		Name:       opDescribeFastLaunchImages,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+		Paginator: &request.Paginator{
+			InputTokens:     []string{"NextToken"},
+			OutputTokens:    []string{"NextToken"},
+			LimitToken:      "MaxResults",
+			TruncationToken: "",
+		},
+	}
+
+	if input == nil {
+		input = &DescribeFastLaunchImagesInput{}
+	}
+
+	output = &DescribeFastLaunchImagesOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// DescribeFastLaunchImages API operation for Amazon Elastic Compute Cloud.
+//
+// Describe details for Windows AMIs that are configured for faster launching.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Elastic Compute Cloud's
+// API operation DescribeFastLaunchImages for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/DescribeFastLaunchImages
+func (c *EC2) DescribeFastLaunchImages(input *DescribeFastLaunchImagesInput) (*DescribeFastLaunchImagesOutput, error) {
+	req, out := c.DescribeFastLaunchImagesRequest(input)
+	return out, req.Send()
+}
+
+// DescribeFastLaunchImagesWithContext is the same as DescribeFastLaunchImages with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DescribeFastLaunchImages for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) DescribeFastLaunchImagesWithContext(ctx aws.Context, input *DescribeFastLaunchImagesInput, opts ...request.Option) (*DescribeFastLaunchImagesOutput, error) {
+	req, out := c.DescribeFastLaunchImagesRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+// DescribeFastLaunchImagesPages iterates over the pages of a DescribeFastLaunchImages operation,
+// calling the "fn" function with the response data for each page. To stop
+// iterating, return false from the fn function.
+//
+// See DescribeFastLaunchImages method for more information on how to use this operation.
+//
+// Note: This operation can generate multiple requests to a service.
+//
+//    // Example iterating over at most 3 pages of a DescribeFastLaunchImages operation.
+//    pageNum := 0
+//    err := client.DescribeFastLaunchImagesPages(params,
+//        func(page *ec2.DescribeFastLaunchImagesOutput, lastPage bool) bool {
+//            pageNum++
+//            fmt.Println(page)
+//            return pageNum <= 3
+//        })
+//
+func (c *EC2) DescribeFastLaunchImagesPages(input *DescribeFastLaunchImagesInput, fn func(*DescribeFastLaunchImagesOutput, bool) bool) error {
+	return c.DescribeFastLaunchImagesPagesWithContext(aws.BackgroundContext(), input, fn)
+}
+
+// DescribeFastLaunchImagesPagesWithContext same as DescribeFastLaunchImagesPages except
+// it takes a Context and allows setting request options on the pages.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) DescribeFastLaunchImagesPagesWithContext(ctx aws.Context, input *DescribeFastLaunchImagesInput, fn func(*DescribeFastLaunchImagesOutput, bool) bool, opts ...request.Option) error {
+	p := request.Pagination{
+		NewRequest: func() (*request.Request, error) {
+			var inCpy *DescribeFastLaunchImagesInput
+			if input != nil {
+				tmp := *input
+				inCpy = &tmp
+			}
+			req, _ := c.DescribeFastLaunchImagesRequest(inCpy)
+			req.SetContext(ctx)
+			req.ApplyOptions(opts...)
+			return req, nil
+		},
+	}
+
+	for p.Next() {
+		if !fn(p.Page().(*DescribeFastLaunchImagesOutput), !p.HasNextPage()) {
+			break
+		}
+	}
+
+	return p.Err()
+}
+
 const opDescribeFastSnapshotRestores = "DescribeFastSnapshotRestores"
 
 // DescribeFastSnapshotRestoresRequest generates a "aws/request.Request" representing the
@@ -18048,7 +18191,7 @@ func (c *EC2) DescribeFleetInstancesRequest(input *DescribeFleetInstancesInput) 
 //
 // Describes the running instances for the specified EC2 Fleet.
 //
-// For more information, see Monitoring your EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet.html#monitor-ec2-fleet)
+// For more information, see Monitor your EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/manage-ec2-fleet.html#monitor-ec2-fleet)
 // in the Amazon EC2 User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -18131,7 +18274,7 @@ func (c *EC2) DescribeFleetsRequest(input *DescribeFleetsInput) (req *request.Re
 //
 // Describes the specified EC2 Fleets or all of your EC2 Fleets.
 //
-// For more information, see Monitoring your EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet.html#monitor-ec2-fleet)
+// For more information, see Monitor your EC2 Fleet (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/manage-ec2-fleet.html#monitor-ec2-fleet)
 // in the Amazon EC2 User Guide.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
@@ -26944,8 +27087,8 @@ func (c *EC2) DescribeStaleSecurityGroupsRequest(input *DescribeStaleSecurityGro
 //
 // [VPC only] Describes the stale security group rules for security groups in
 // a specified VPC. Rules are stale when they reference a deleted security group
-// in a peer VPC, or a security group in a peer VPC for which the VPC peering
-// connection has been deleted.
+// in the same VPC or in a peer VPC, or if they reference a security group in
+// a peer VPC for which the VPC peering connection has been deleted.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -31499,6 +31642,85 @@ func (c *EC2) DisableEbsEncryptionByDefaultWithContext(ctx aws.Context, input *D
 	return out, req.Send()
 }
 
+const opDisableFastLaunch = "DisableFastLaunch"
+
+// DisableFastLaunchRequest generates a "aws/request.Request" representing the
+// client's request for the DisableFastLaunch operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DisableFastLaunch for more information on using the DisableFastLaunch
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DisableFastLaunchRequest method.
+//    req, resp := client.DisableFastLaunchRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/DisableFastLaunch
+func (c *EC2) DisableFastLaunchRequest(input *DisableFastLaunchInput) (req *request.Request, output *DisableFastLaunchOutput) {
+	op := &request.Operation{
+		Name:       opDisableFastLaunch,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &DisableFastLaunchInput{}
+	}
+
+	output = &DisableFastLaunchOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// DisableFastLaunch API operation for Amazon Elastic Compute Cloud.
+//
+// Discontinue faster launching for a Windows AMI, and clean up existing pre-provisioned
+// snapshots. When you disable faster launching, the AMI uses the standard launch
+// process for each instance. All pre-provisioned snapshots must be removed
+// before you can enable faster launching again.
+//
+// To change these settings, you must own the AMI.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Elastic Compute Cloud's
+// API operation DisableFastLaunch for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/DisableFastLaunch
+func (c *EC2) DisableFastLaunch(input *DisableFastLaunchInput) (*DisableFastLaunchOutput, error) {
+	req, out := c.DisableFastLaunchRequest(input)
+	return out, req.Send()
+}
+
+// DisableFastLaunchWithContext is the same as DisableFastLaunch with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DisableFastLaunch for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) DisableFastLaunchWithContext(ctx aws.Context, input *DisableFastLaunchInput, opts ...request.Option) (*DisableFastLaunchOutput, error) {
+	req, out := c.DisableFastLaunchRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
 const opDisableFastSnapshotRestores = "DisableFastSnapshotRestores"
 
 // DisableFastSnapshotRestoresRequest generates a "aws/request.Request" representing the
@@ -33058,6 +33280,87 @@ func (c *EC2) EnableEbsEncryptionByDefault(input *EnableEbsEncryptionByDefaultIn
 // for more information on using Contexts.
 func (c *EC2) EnableEbsEncryptionByDefaultWithContext(ctx aws.Context, input *EnableEbsEncryptionByDefaultInput, opts ...request.Option) (*EnableEbsEncryptionByDefaultOutput, error) {
 	req, out := c.EnableEbsEncryptionByDefaultRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opEnableFastLaunch = "EnableFastLaunch"
+
+// EnableFastLaunchRequest generates a "aws/request.Request" representing the
+// client's request for the EnableFastLaunch operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See EnableFastLaunch for more information on using the EnableFastLaunch
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the EnableFastLaunchRequest method.
+//    req, resp := client.EnableFastLaunchRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/EnableFastLaunch
+func (c *EC2) EnableFastLaunchRequest(input *EnableFastLaunchInput) (req *request.Request, output *EnableFastLaunchOutput) {
+	op := &request.Operation{
+		Name:       opEnableFastLaunch,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &EnableFastLaunchInput{}
+	}
+
+	output = &EnableFastLaunchOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// EnableFastLaunch API operation for Amazon Elastic Compute Cloud.
+//
+// When you enable faster launching for a Windows AMI, images are pre-provisioned,
+// using snapshots to launch instances up to 65% faster. To create the optimized
+// Windows image, Amazon EC2 launches an instance and runs through Sysprep steps,
+// rebooting as required. Then it creates a set of reserved snapshots that are
+// used for subsequent launches. The reserved snapshots are automatically replenished
+// as they are used, depending on your settings for launch frequency.
+//
+// To change these settings, you must own the AMI.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Elastic Compute Cloud's
+// API operation EnableFastLaunch for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/EnableFastLaunch
+func (c *EC2) EnableFastLaunch(input *EnableFastLaunchInput) (*EnableFastLaunchOutput, error) {
+	req, out := c.EnableFastLaunchRequest(input)
+	return out, req.Send()
+}
+
+// EnableFastLaunchWithContext is the same as EnableFastLaunch with the addition of
+// the ability to pass a context and additional request options.
+//
+// See EnableFastLaunch for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) EnableFastLaunchWithContext(ctx aws.Context, input *EnableFastLaunchInput, opts ...request.Option) (*EnableFastLaunchOutput, error) {
+	req, out := c.EnableFastLaunchRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -38132,6 +38435,140 @@ func (c *EC2) ImportVolumeWithContext(ctx aws.Context, input *ImportVolumeInput,
 	return out, req.Send()
 }
 
+const opListImagesInRecycleBin = "ListImagesInRecycleBin"
+
+// ListImagesInRecycleBinRequest generates a "aws/request.Request" representing the
+// client's request for the ListImagesInRecycleBin operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See ListImagesInRecycleBin for more information on using the ListImagesInRecycleBin
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the ListImagesInRecycleBinRequest method.
+//    req, resp := client.ListImagesInRecycleBinRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/ListImagesInRecycleBin
+func (c *EC2) ListImagesInRecycleBinRequest(input *ListImagesInRecycleBinInput) (req *request.Request, output *ListImagesInRecycleBinOutput) {
+	op := &request.Operation{
+		Name:       opListImagesInRecycleBin,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+		Paginator: &request.Paginator{
+			InputTokens:     []string{"NextToken"},
+			OutputTokens:    []string{"NextToken"},
+			LimitToken:      "MaxResults",
+			TruncationToken: "",
+		},
+	}
+
+	if input == nil {
+		input = &ListImagesInRecycleBinInput{}
+	}
+
+	output = &ListImagesInRecycleBinOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// ListImagesInRecycleBin API operation for Amazon Elastic Compute Cloud.
+//
+// Lists one or more AMIs that are currently in the Recycle Bin. For more information,
+// see Recycle Bin (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recycle-bin.html)
+// in the Amazon Elastic Compute Cloud User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Elastic Compute Cloud's
+// API operation ListImagesInRecycleBin for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/ListImagesInRecycleBin
+func (c *EC2) ListImagesInRecycleBin(input *ListImagesInRecycleBinInput) (*ListImagesInRecycleBinOutput, error) {
+	req, out := c.ListImagesInRecycleBinRequest(input)
+	return out, req.Send()
+}
+
+// ListImagesInRecycleBinWithContext is the same as ListImagesInRecycleBin with the addition of
+// the ability to pass a context and additional request options.
+//
+// See ListImagesInRecycleBin for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) ListImagesInRecycleBinWithContext(ctx aws.Context, input *ListImagesInRecycleBinInput, opts ...request.Option) (*ListImagesInRecycleBinOutput, error) {
+	req, out := c.ListImagesInRecycleBinRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+// ListImagesInRecycleBinPages iterates over the pages of a ListImagesInRecycleBin operation,
+// calling the "fn" function with the response data for each page. To stop
+// iterating, return false from the fn function.
+//
+// See ListImagesInRecycleBin method for more information on how to use this operation.
+//
+// Note: This operation can generate multiple requests to a service.
+//
+//    // Example iterating over at most 3 pages of a ListImagesInRecycleBin operation.
+//    pageNum := 0
+//    err := client.ListImagesInRecycleBinPages(params,
+//        func(page *ec2.ListImagesInRecycleBinOutput, lastPage bool) bool {
+//            pageNum++
+//            fmt.Println(page)
+//            return pageNum <= 3
+//        })
+//
+func (c *EC2) ListImagesInRecycleBinPages(input *ListImagesInRecycleBinInput, fn func(*ListImagesInRecycleBinOutput, bool) bool) error {
+	return c.ListImagesInRecycleBinPagesWithContext(aws.BackgroundContext(), input, fn)
+}
+
+// ListImagesInRecycleBinPagesWithContext same as ListImagesInRecycleBinPages except
+// it takes a Context and allows setting request options on the pages.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) ListImagesInRecycleBinPagesWithContext(ctx aws.Context, input *ListImagesInRecycleBinInput, fn func(*ListImagesInRecycleBinOutput, bool) bool, opts ...request.Option) error {
+	p := request.Pagination{
+		NewRequest: func() (*request.Request, error) {
+			var inCpy *ListImagesInRecycleBinInput
+			if input != nil {
+				tmp := *input
+				inCpy = &tmp
+			}
+			req, _ := c.ListImagesInRecycleBinRequest(inCpy)
+			req.SetContext(ctx)
+			req.ApplyOptions(opts...)
+			return req, nil
+		},
+	}
+
+	for p.Next() {
+		if !fn(p.Page().(*ListImagesInRecycleBinOutput), !p.HasNextPage()) {
+			break
+		}
+	}
+
+	return p.Err()
+}
+
 const opListSnapshotsInRecycleBin = "ListSnapshotsInRecycleBin"
 
 // ListSnapshotsInRecycleBinRequest generates a "aws/request.Request" representing the
@@ -42751,7 +43188,7 @@ func (c *EC2) MonitorInstancesRequest(input *MonitorInstancesInput) (req *reques
 // (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-cloudwatch.html)
 // in the Amazon EC2 User Guide.
 //
-// To disable detailed monitoring, see .
+// To disable detailed monitoring, see UnmonitorInstances (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_UnmonitorInstances.html).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -43684,7 +44121,7 @@ func (c *EC2) RegisterInstanceEventNotificationAttributesRequest(input *Register
 // Registers a set of tag keys to include in scheduled event notifications for
 // your resources.
 //
-// To remove tags, use .
+// To remove tags, use DeregisterInstanceEventNotificationAttributes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DeregisterInstanceEventNotificationAttributes.html).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -45857,6 +46294,82 @@ func (c *EC2) RestoreAddressToClassic(input *RestoreAddressToClassicInput) (*Res
 // for more information on using Contexts.
 func (c *EC2) RestoreAddressToClassicWithContext(ctx aws.Context, input *RestoreAddressToClassicInput, opts ...request.Option) (*RestoreAddressToClassicOutput, error) {
 	req, out := c.RestoreAddressToClassicRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opRestoreImageFromRecycleBin = "RestoreImageFromRecycleBin"
+
+// RestoreImageFromRecycleBinRequest generates a "aws/request.Request" representing the
+// client's request for the RestoreImageFromRecycleBin operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See RestoreImageFromRecycleBin for more information on using the RestoreImageFromRecycleBin
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the RestoreImageFromRecycleBinRequest method.
+//    req, resp := client.RestoreImageFromRecycleBinRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/RestoreImageFromRecycleBin
+func (c *EC2) RestoreImageFromRecycleBinRequest(input *RestoreImageFromRecycleBinInput) (req *request.Request, output *RestoreImageFromRecycleBinOutput) {
+	op := &request.Operation{
+		Name:       opRestoreImageFromRecycleBin,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &RestoreImageFromRecycleBinInput{}
+	}
+
+	output = &RestoreImageFromRecycleBinOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// RestoreImageFromRecycleBin API operation for Amazon Elastic Compute Cloud.
+//
+// Restores an AMI from the Recycle Bin. For more information, see Recycle Bin
+// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/recycle-bin.html) in
+// the Amazon Elastic Compute Cloud User Guide.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Elastic Compute Cloud's
+// API operation RestoreImageFromRecycleBin for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/ec2-2016-11-15/RestoreImageFromRecycleBin
+func (c *EC2) RestoreImageFromRecycleBin(input *RestoreImageFromRecycleBinInput) (*RestoreImageFromRecycleBinOutput, error) {
+	req, out := c.RestoreImageFromRecycleBinRequest(input)
+	return out, req.Send()
+}
+
+// RestoreImageFromRecycleBinWithContext is the same as RestoreImageFromRecycleBin with the addition of
+// the ability to pass a context and additional request options.
+//
+// See RestoreImageFromRecycleBin for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *EC2) RestoreImageFromRecycleBinWithContext(ctx aws.Context, input *RestoreImageFromRecycleBinInput, opts ...request.Option) (*RestoreImageFromRecycleBinOutput, error) {
+	req, out := c.RestoreImageFromRecycleBinRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -53971,7 +54484,8 @@ type AvailabilityZone struct {
 	// The name of the Region.
 	RegionName *string `locationName:"regionName" type:"string"`
 
-	// The state of the Availability Zone, Local Zone, or Wavelength Zone.
+	// The state of the Availability Zone, Local Zone, or Wavelength Zone. This
+	// value is always available.
 	State *string `locationName:"zoneState" type:"string" enum:"AvailabilityZoneState"`
 
 	// The ID of the Availability Zone, Local Zone, or Wavelength Zone.
@@ -55773,6 +56287,12 @@ type CapacityReservation struct {
 	// The ID of the Amazon Web Services account that owns the Capacity Reservation.
 	OwnerId *string `locationName:"ownerId" type:"string"`
 
+	// The Amazon Resource Name (ARN) of the cluster placement group in which the
+	// Capacity Reservation was created. For more information, see Capacity Reservations
+	// for cluster placement groups (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cr-cpg.html)
+	// in the Amazon EC2 User Guide.
+	PlacementGroupArn *string `locationName:"placementGroupArn" type:"string"`
+
 	// The date and time at which the Capacity Reservation was started.
 	StartDate *time.Time `locationName:"startDate" type:"timestamp"`
 
@@ -55926,6 +56446,12 @@ func (s *CapacityReservation) SetOutpostArn(v string) *CapacityReservation {
 // SetOwnerId sets the OwnerId field's value.
 func (s *CapacityReservation) SetOwnerId(v string) *CapacityReservation {
 	s.OwnerId = &v
+	return s
+}
+
+// SetPlacementGroupArn sets the PlacementGroupArn field's value.
+func (s *CapacityReservation) SetPlacementGroupArn(v string) *CapacityReservation {
+	s.PlacementGroupArn = &v
 	return s
 }
 
@@ -57135,6 +57661,101 @@ func (s *ClientData) SetUploadStart(v time.Time) *ClientData {
 	return s
 }
 
+// Options for enabling a customizable text banner that will be displayed on
+// Amazon Web Services provided clients when a VPN session is established.
+type ClientLoginBannerOptions struct {
+	_ struct{} `type:"structure"`
+
+	// Customizable text that will be displayed in a banner on Amazon Web Services
+	// provided clients when a VPN session is established. UTF-8 encoded characters
+	// only. Maximum of 1400 characters.
+	BannerText *string `type:"string"`
+
+	// Enable or disable a customizable text banner that will be displayed on Amazon
+	// Web Services provided clients when a VPN session is established.
+	//
+	// Valid values: true | false
+	//
+	// Default value: false
+	Enabled *bool `type:"boolean"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ClientLoginBannerOptions) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ClientLoginBannerOptions) GoString() string {
+	return s.String()
+}
+
+// SetBannerText sets the BannerText field's value.
+func (s *ClientLoginBannerOptions) SetBannerText(v string) *ClientLoginBannerOptions {
+	s.BannerText = &v
+	return s
+}
+
+// SetEnabled sets the Enabled field's value.
+func (s *ClientLoginBannerOptions) SetEnabled(v bool) *ClientLoginBannerOptions {
+	s.Enabled = &v
+	return s
+}
+
+// Current state of options for customizable text banner that will be displayed
+// on Amazon Web Services provided clients when a VPN session is established.
+type ClientLoginBannerResponseOptions struct {
+	_ struct{} `type:"structure"`
+
+	// Customizable text that will be displayed in a banner on Amazon Web Services
+	// provided clients when a VPN session is established. UTF-8 encoded characters
+	// only. Maximum of 1400 characters.
+	BannerText *string `locationName:"bannerText" type:"string"`
+
+	// Current state of text banner feature.
+	//
+	// Valid values: true | false
+	Enabled *bool `locationName:"enabled" type:"boolean"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ClientLoginBannerResponseOptions) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ClientLoginBannerResponseOptions) GoString() string {
+	return s.String()
+}
+
+// SetBannerText sets the BannerText field's value.
+func (s *ClientLoginBannerResponseOptions) SetBannerText(v string) *ClientLoginBannerResponseOptions {
+	s.BannerText = &v
+	return s
+}
+
+// SetEnabled sets the Enabled field's value.
+func (s *ClientLoginBannerResponseOptions) SetEnabled(v bool) *ClientLoginBannerResponseOptions {
+	s.Enabled = &v
+	return s
+}
+
 // Describes the authentication methods used by a Client VPN endpoint. For more
 // information, see Authentication (https://docs.aws.amazon.com/vpn/latest/clientvpn-admin/client-authentication.html)
 // in the Client VPN Administrator Guide.
@@ -57514,6 +58135,10 @@ type ClientVpnEndpoint struct {
 	// The options for managing connection authorization for new client connections.
 	ClientConnectOptions *ClientConnectResponseOptions `locationName:"clientConnectOptions" type:"structure"`
 
+	// Options for enabling a customizable text banner that will be displayed on
+	// Amazon Web Services provided clients when a VPN session is established.
+	ClientLoginBannerOptions *ClientLoginBannerResponseOptions `locationName:"clientLoginBannerOptions" type:"structure"`
+
 	// The ID of the Client VPN endpoint.
 	ClientVpnEndpointId *string `locationName:"clientVpnEndpointId" type:"string"`
 
@@ -57544,6 +58169,13 @@ type ClientVpnEndpoint struct {
 
 	// The ARN of the server certificate.
 	ServerCertificateArn *string `locationName:"serverCertificateArn" type:"string"`
+
+	// The maximum VPN session duration time in hours.
+	//
+	// Valid values: 8 | 10 | 12 | 24
+	//
+	// Default value: 24
+	SessionTimeoutHours *int64 `locationName:"sessionTimeoutHours" type:"integer"`
 
 	// Indicates whether split-tunnel is enabled in the Client VPN endpoint.
 	//
@@ -57613,6 +58245,12 @@ func (s *ClientVpnEndpoint) SetClientConnectOptions(v *ClientConnectResponseOpti
 	return s
 }
 
+// SetClientLoginBannerOptions sets the ClientLoginBannerOptions field's value.
+func (s *ClientVpnEndpoint) SetClientLoginBannerOptions(v *ClientLoginBannerResponseOptions) *ClientVpnEndpoint {
+	s.ClientLoginBannerOptions = v
+	return s
+}
+
 // SetClientVpnEndpointId sets the ClientVpnEndpointId field's value.
 func (s *ClientVpnEndpoint) SetClientVpnEndpointId(v string) *ClientVpnEndpoint {
 	s.ClientVpnEndpointId = &v
@@ -57670,6 +58308,12 @@ func (s *ClientVpnEndpoint) SetSelfServicePortalUrl(v string) *ClientVpnEndpoint
 // SetServerCertificateArn sets the ServerCertificateArn field's value.
 func (s *ClientVpnEndpoint) SetServerCertificateArn(v string) *ClientVpnEndpoint {
 	s.ServerCertificateArn = &v
+	return s
+}
+
+// SetSessionTimeoutHours sets the SessionTimeoutHours field's value.
+func (s *ClientVpnEndpoint) SetSessionTimeoutHours(v int64) *ClientVpnEndpoint {
+	s.SessionTimeoutHours = &v
 	return s
 }
 
@@ -59491,6 +60135,12 @@ type CreateCapacityReservationInput struct {
 	// Reservation.
 	OutpostArn *string `type:"string"`
 
+	// The Amazon Resource Name (ARN) of the cluster placement group in which to
+	// create the Capacity Reservation. For more information, see Capacity Reservations
+	// for cluster placement groups (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cr-cpg.html)
+	// in the Amazon EC2 User Guide.
+	PlacementGroupArn *string `type:"string"`
+
 	// The tags to apply to the Capacity Reservation during launch.
 	TagSpecifications []*TagSpecification `locationNameList:"item" type:"list"`
 
@@ -59617,6 +60267,12 @@ func (s *CreateCapacityReservationInput) SetInstanceType(v string) *CreateCapaci
 // SetOutpostArn sets the OutpostArn field's value.
 func (s *CreateCapacityReservationInput) SetOutpostArn(v string) *CreateCapacityReservationInput {
 	s.OutpostArn = &v
+	return s
+}
+
+// SetPlacementGroupArn sets the PlacementGroupArn field's value.
+func (s *CreateCapacityReservationInput) SetPlacementGroupArn(v string) *CreateCapacityReservationInput {
+	s.PlacementGroupArn = &v
 	return s
 }
 
@@ -59791,6 +60447,10 @@ type CreateClientVpnEndpointInput struct {
 	// The options for managing connection authorization for new client connections.
 	ClientConnectOptions *ClientConnectOptions `type:"structure"`
 
+	// Options for enabling a customizable text banner that will be displayed on
+	// Amazon Web Services provided clients when a VPN session is established.
+	ClientLoginBannerOptions *ClientLoginBannerOptions `type:"structure"`
+
 	// Unique, case-sensitive identifier that you provide to ensure the idempotency
 	// of the request. For more information, see How to ensure idempotency (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Run_Instance_Idempotency.html).
 	ClientToken *string `type:"string" idempotencyToken:"true"`
@@ -59839,6 +60499,13 @@ type CreateClientVpnEndpointInput struct {
 	//
 	// ServerCertificateArn is a required field
 	ServerCertificateArn *string `type:"string" required:"true"`
+
+	// The maximum VPN session duration time in hours.
+	//
+	// Valid values: 8 | 10 | 12 | 24
+	//
+	// Default value: 24
+	SessionTimeoutHours *int64 `type:"integer"`
 
 	// Indicates whether split-tunnel is enabled on the Client VPN endpoint.
 	//
@@ -59928,6 +60595,12 @@ func (s *CreateClientVpnEndpointInput) SetClientConnectOptions(v *ClientConnectO
 	return s
 }
 
+// SetClientLoginBannerOptions sets the ClientLoginBannerOptions field's value.
+func (s *CreateClientVpnEndpointInput) SetClientLoginBannerOptions(v *ClientLoginBannerOptions) *CreateClientVpnEndpointInput {
+	s.ClientLoginBannerOptions = v
+	return s
+}
+
 // SetClientToken sets the ClientToken field's value.
 func (s *CreateClientVpnEndpointInput) SetClientToken(v string) *CreateClientVpnEndpointInput {
 	s.ClientToken = &v
@@ -59973,6 +60646,12 @@ func (s *CreateClientVpnEndpointInput) SetSelfServicePortal(v string) *CreateCli
 // SetServerCertificateArn sets the ServerCertificateArn field's value.
 func (s *CreateClientVpnEndpointInput) SetServerCertificateArn(v string) *CreateClientVpnEndpointInput {
 	s.ServerCertificateArn = &v
+	return s
+}
+
+// SetSessionTimeoutHours sets the SessionTimeoutHours field's value.
+func (s *CreateClientVpnEndpointInput) SetSessionTimeoutHours(v int64) *CreateClientVpnEndpointInput {
+	s.SessionTimeoutHours = &v
 	return s
 }
 
@@ -60735,11 +61414,11 @@ type CreateFleetError struct {
 	_ struct{} `type:"structure"`
 
 	// The error code that indicates why the instance could not be launched. For
-	// more information about error codes, see Error Codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
+	// more information about error codes, see Error codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
 	ErrorCode *string `locationName:"errorCode" type:"string"`
 
 	// The error message that describes why the instance could not be launched.
-	// For more information about error messages, see Error Codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
+	// For more information about error messages, see Error codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
 	ErrorMessage *string `locationName:"errorMessage" type:"string"`
 
 	// The launch templates and overrides that were used for launching the instances.
@@ -60798,7 +61477,7 @@ type CreateFleetInput struct {
 	_ struct{} `type:"structure"`
 
 	// Unique, case-sensitive identifier that you provide to ensure the idempotency
-	// of the request. For more information, see Ensuring Idempotency (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Run_Instance_Idempotency.html).
+	// of the request. For more information, see Ensuring idempotency (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Run_Instance_Idempotency.html).
 	ClientToken *string `type:"string"`
 
 	// Reserved.
@@ -60867,7 +61546,7 @@ type CreateFleetInput struct {
 	//    desired capacity, and returns errors for any instances that could not
 	//    be launched.
 	//
-	// For more information, see EC2 Fleet request types (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-configuration-strategies.html#ec2-fleet-request-type)
+	// For more information, see EC2 Fleet request types (https://docs.aws.amazon.com/https:/docs.aws.amazon.com/ec2-fleet-request-type.html)
 	// in the Amazon EC2 User Guide.
 	Type *string `type:"string" enum:"FleetType"`
 
@@ -64093,12 +64772,9 @@ type CreateNetworkInterfaceInput struct {
 	// The IDs of one or more security groups.
 	Groups []*string `locationName:"SecurityGroupId" locationNameList:"SecurityGroupId" type:"list"`
 
-	// Indicates the type of network interface. To create an Elastic Fabric Adapter
-	// (EFA), specify efa. For more information, see Elastic Fabric Adapter (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html)
-	// in the Amazon Elastic Compute Cloud User Guide. To create a trunk network
-	// interface, specify efa. For more information, see Network interface trunking
-	// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/eni-trunking.html) in
-	// the Amazon Elastic Compute Cloud User Guide.
+	// The type of network interface. The default is interface.
+	//
+	// The only supported values are efa and trunk.
 	InterfaceType *string `type:"string" enum:"NetworkInterfaceCreationType"`
 
 	// The number of IPv4 prefixes that Amazon Web Services automatically assigns
@@ -76851,7 +77527,7 @@ type DescribeAvailabilityZonesInput struct {
 	//    * region-name - The name of the Region for the Zone (for example, us-east-1).
 	//
 	//    * state - The state of the Availability Zone, the Local Zone, or the Wavelength
-	//    Zone (available | information | impaired | unavailable).
+	//    Zone (available).
 	//
 	//    * zone-id - The ID of the Availability Zone (for example, use1-az1), the
 	//    Local Zone (for example, usw2-lax1-az1), or the Wavelength Zone (for example,
@@ -77329,12 +78005,10 @@ type DescribeCapacityReservationsInput struct {
 	//    * owner-id - The ID of the Amazon Web Services account that owns the Capacity
 	//    Reservation.
 	//
-	//    * availability-zone-id - The Availability Zone ID of the Capacity Reservation.
-	//
 	//    * instance-platform - The type of operating system for which the Capacity
 	//    Reservation reserves capacity.
 	//
-	//    * availability-zone - The Availability Zone ID of the Capacity Reservation.
+	//    * availability-zone - The Availability Zone of the Capacity Reservation.
 	//
 	//    * tenancy - Indicates the tenancy of the Capacity Reservation. A Capacity
 	//    Reservation can have one of the following tenancy settings: default -
@@ -77381,6 +78055,9 @@ type DescribeCapacityReservationsInput struct {
 	//    instances that have matching attributes (instance type, platform, and
 	//    Availability Zone), and explicitly target the Capacity Reservation. This
 	//    ensures that only permitted instances can use the reserved capacity.
+	//
+	//    * placement-group-arn - The ARN of the cluster placement group in which
+	//    the Capacity Reservation was created.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The maximum number of results to return for the request in a single page.
@@ -78483,11 +79160,12 @@ type DescribeCoipPoolsInput struct {
 	// it is UnauthorizedOperation.
 	DryRun *bool `type:"boolean"`
 
-	// The filters. The following are the possible values:
+	// One or more filters.
 	//
-	//    * coip-pool.pool-id
+	//    * coip-pool.local-gateway-route-table-id - The ID of the local gateway
+	//    route table.
 	//
-	//    * coip-pool.local-gateway-route-table-id
+	//    * coip-pool.pool-id - The ID of the address pool.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The maximum number of results to return with a single call. To retrieve the
@@ -79416,6 +80094,240 @@ func (s *DescribeExportTasksOutput) SetExportTasks(v []*ExportTask) *DescribeExp
 	return s
 }
 
+type DescribeFastLaunchImagesInput struct {
+	_ struct{} `type:"structure"`
+
+	// Checks whether you have the required permissions for the action, without
+	// actually making the request, and provides an error response. If you have
+	// the required permissions, the error response is DryRunOperation. Otherwise,
+	// it is UnauthorizedOperation.
+	DryRun *bool `type:"boolean"`
+
+	// Use the following filters to streamline results.
+	//
+	//    * resource-type - The resource type for pre-provisioning.
+	//
+	//    * launch-template - The launch template that is associated with the pre-provisioned
+	//    Windows AMI.
+	//
+	//    * owner-id - The owner ID for the pre-provisioning resource.
+	//
+	//    * state - The current state of fast launching for the Windows AMI.
+	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
+
+	// Details for one or more Windows AMI image IDs.
+	ImageIds []*string `locationName:"ImageId" locationNameList:"ImageId" type:"list"`
+
+	// The maximum number of results to return in a single call. To retrieve the
+	// remaining results, make another request with the returned NextToken value.
+	// If this parameter is not specified, then all results are returned.
+	MaxResults *int64 `type:"integer"`
+
+	// The token for the next set of results.
+	NextToken *string `type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesInput) GoString() string {
+	return s.String()
+}
+
+// SetDryRun sets the DryRun field's value.
+func (s *DescribeFastLaunchImagesInput) SetDryRun(v bool) *DescribeFastLaunchImagesInput {
+	s.DryRun = &v
+	return s
+}
+
+// SetFilters sets the Filters field's value.
+func (s *DescribeFastLaunchImagesInput) SetFilters(v []*Filter) *DescribeFastLaunchImagesInput {
+	s.Filters = v
+	return s
+}
+
+// SetImageIds sets the ImageIds field's value.
+func (s *DescribeFastLaunchImagesInput) SetImageIds(v []*string) *DescribeFastLaunchImagesInput {
+	s.ImageIds = v
+	return s
+}
+
+// SetMaxResults sets the MaxResults field's value.
+func (s *DescribeFastLaunchImagesInput) SetMaxResults(v int64) *DescribeFastLaunchImagesInput {
+	s.MaxResults = &v
+	return s
+}
+
+// SetNextToken sets the NextToken field's value.
+func (s *DescribeFastLaunchImagesInput) SetNextToken(v string) *DescribeFastLaunchImagesInput {
+	s.NextToken = &v
+	return s
+}
+
+type DescribeFastLaunchImagesOutput struct {
+	_ struct{} `type:"structure"`
+
+	// A collection of details about the fast-launch enabled Windows images that
+	// meet the requested criteria.
+	FastLaunchImages []*DescribeFastLaunchImagesSuccessItem `locationName:"fastLaunchImageSet" locationNameList:"item" type:"list"`
+
+	// The token to use for the next set of results. This value is null when there
+	// are no more results to return.
+	NextToken *string `locationName:"nextToken" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesOutput) GoString() string {
+	return s.String()
+}
+
+// SetFastLaunchImages sets the FastLaunchImages field's value.
+func (s *DescribeFastLaunchImagesOutput) SetFastLaunchImages(v []*DescribeFastLaunchImagesSuccessItem) *DescribeFastLaunchImagesOutput {
+	s.FastLaunchImages = v
+	return s
+}
+
+// SetNextToken sets the NextToken field's value.
+func (s *DescribeFastLaunchImagesOutput) SetNextToken(v string) *DescribeFastLaunchImagesOutput {
+	s.NextToken = &v
+	return s
+}
+
+// Describe details about a fast-launch enabled Windows image that meets the
+// requested criteria. Criteria are defined by the DescribeFastLaunchImages
+// action filters.
+type DescribeFastLaunchImagesSuccessItem struct {
+	_ struct{} `type:"structure"`
+
+	// The image ID that identifies the fast-launch enabled Windows image.
+	ImageId *string `locationName:"imageId" type:"string"`
+
+	// The launch template that the fast-launch enabled Windows AMI uses when it
+	// launches Windows instances from pre-provisioned snapshots.
+	LaunchTemplate *FastLaunchLaunchTemplateSpecificationResponse `locationName:"launchTemplate" type:"structure"`
+
+	// The maximum number of parallel instances that are launched for creating resources.
+	MaxParallelLaunches *int64 `locationName:"maxParallelLaunches" type:"integer"`
+
+	// The owner ID for the fast-launch enabled Windows AMI.
+	OwnerId *string `locationName:"ownerId" type:"string"`
+
+	// The resource type that is used for pre-provisioning the Windows AMI. Supported
+	// values include: snapshot.
+	ResourceType *string `locationName:"resourceType" type:"string" enum:"FastLaunchResourceType"`
+
+	// A group of parameters that are used for pre-provisioning the associated Windows
+	// AMI using snapshots.
+	SnapshotConfiguration *FastLaunchSnapshotConfigurationResponse `locationName:"snapshotConfiguration" type:"structure"`
+
+	// The current state of faster launching for the specified Windows AMI.
+	State *string `locationName:"state" type:"string" enum:"FastLaunchStateCode"`
+
+	// The reason that faster launching for the Windows AMI changed to the current
+	// state.
+	StateTransitionReason *string `locationName:"stateTransitionReason" type:"string"`
+
+	// The time that faster launching for the Windows AMI changed to the current
+	// state.
+	StateTransitionTime *time.Time `locationName:"stateTransitionTime" type:"timestamp"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesSuccessItem) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DescribeFastLaunchImagesSuccessItem) GoString() string {
+	return s.String()
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetImageId(v string) *DescribeFastLaunchImagesSuccessItem {
+	s.ImageId = &v
+	return s
+}
+
+// SetLaunchTemplate sets the LaunchTemplate field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetLaunchTemplate(v *FastLaunchLaunchTemplateSpecificationResponse) *DescribeFastLaunchImagesSuccessItem {
+	s.LaunchTemplate = v
+	return s
+}
+
+// SetMaxParallelLaunches sets the MaxParallelLaunches field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetMaxParallelLaunches(v int64) *DescribeFastLaunchImagesSuccessItem {
+	s.MaxParallelLaunches = &v
+	return s
+}
+
+// SetOwnerId sets the OwnerId field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetOwnerId(v string) *DescribeFastLaunchImagesSuccessItem {
+	s.OwnerId = &v
+	return s
+}
+
+// SetResourceType sets the ResourceType field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetResourceType(v string) *DescribeFastLaunchImagesSuccessItem {
+	s.ResourceType = &v
+	return s
+}
+
+// SetSnapshotConfiguration sets the SnapshotConfiguration field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetSnapshotConfiguration(v *FastLaunchSnapshotConfigurationResponse) *DescribeFastLaunchImagesSuccessItem {
+	s.SnapshotConfiguration = v
+	return s
+}
+
+// SetState sets the State field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetState(v string) *DescribeFastLaunchImagesSuccessItem {
+	s.State = &v
+	return s
+}
+
+// SetStateTransitionReason sets the StateTransitionReason field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetStateTransitionReason(v string) *DescribeFastLaunchImagesSuccessItem {
+	s.StateTransitionReason = &v
+	return s
+}
+
+// SetStateTransitionTime sets the StateTransitionTime field's value.
+func (s *DescribeFastLaunchImagesSuccessItem) SetStateTransitionTime(v time.Time) *DescribeFastLaunchImagesSuccessItem {
+	s.StateTransitionTime = &v
+	return s
+}
+
 // Describes fast snapshot restores for a snapshot.
 type DescribeFastSnapshotRestoreSuccessItem struct {
 	_ struct{} `type:"structure"`
@@ -79664,11 +80576,11 @@ type DescribeFleetError struct {
 	_ struct{} `type:"structure"`
 
 	// The error code that indicates why the instance could not be launched. For
-	// more information about error codes, see Error Codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
+	// more information about error codes, see Error codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
 	ErrorCode *string `locationName:"errorCode" type:"string"`
 
 	// The error message that describes why the instance could not be launched.
-	// For more information about error messages, see Error Codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
+	// For more information about error messages, see Error codes (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html.html).
 	ErrorMessage *string `locationName:"errorMessage" type:"string"`
 
 	// The launch templates and overrides that were used for launching the instances.
@@ -80060,7 +80972,10 @@ type DescribeFleetsInput struct {
 	//    * type - The type of request (instant | request | maintain).
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
-	// The ID of the EC2 Fleets.
+	// The IDs of the EC2 Fleets.
+	//
+	// If a fleet is of type instant, you must specify the fleet ID, otherwise it
+	// does not appear in the response.
 	FleetIds []*string `locationName:"FleetId" type:"list"`
 
 	// The maximum number of results to return in a single call. Specify a value
@@ -81388,7 +82303,7 @@ type DescribeImageAttributeOutput struct {
 	// The block device mapping entries.
 	BlockDeviceMappings []*BlockDeviceMapping `locationName:"blockDeviceMapping" locationNameList:"item" type:"list"`
 
-	// Describes a value for a resource attribute that is a String.
+	// The boot mode.
 	BootMode *AttributeValue `locationName:"bootMode" type:"structure"`
 
 	// A description for the AMI.
@@ -81399,6 +82314,13 @@ type DescribeImageAttributeOutput struct {
 
 	// The kernel ID.
 	KernelId *AttributeValue `locationName:"kernel" type:"structure"`
+
+	// The date and time, in ISO 8601 date-time format (http://www.iso.org/iso/iso8601),
+	// when the AMI was last used to launch an EC2 instance. When the AMI is used,
+	// there is a 24-hour delay before that usage is reported.
+	//
+	// lastLaunchedTime data is available starting April 2017.
+	LastLaunchedTime *AttributeValue `locationName:"lastLaunchedTime" type:"structure"`
 
 	// The launch permissions.
 	LaunchPermissions []*LaunchPermission `locationName:"launchPermission" locationNameList:"item" type:"list"`
@@ -81459,6 +82381,12 @@ func (s *DescribeImageAttributeOutput) SetImageId(v string) *DescribeImageAttrib
 // SetKernelId sets the KernelId field's value.
 func (s *DescribeImageAttributeOutput) SetKernelId(v *AttributeValue) *DescribeImageAttributeOutput {
 	s.KernelId = v
+	return s
+}
+
+// SetLastLaunchedTime sets the LastLaunchedTime field's value.
+func (s *DescribeImageAttributeOutput) SetLastLaunchedTime(v *AttributeValue) *DescribeImageAttributeOutput {
+	s.LastLaunchedTime = v
 	return s
 }
 
@@ -82902,8 +83830,8 @@ type DescribeInstanceTypesInput struct {
 	//    * instance-storage-info.disk.type - The storage technology for the local
 	//    instance storage disks (hdd | ssd).
 	//
-	//    * instance-storage-info.encryption-supported - Indicates whether data
-	//    is encrypted at rest (required | unsupported).
+	//    * instance-storage-info.encryption-support - Indicates whether data is
+	//    encrypted at rest (required | supported | unsupported).
 	//
 	//    * instance-storage-info.nvme-support - Indicates whether non-volatile
 	//    memory express (NVMe) is supported for instance store (required | supported
@@ -82940,6 +83868,9 @@ type DescribeInstanceTypesInput struct {
 	//
 	//    * network-info.ipv6-supported - Indicates whether the instance type supports
 	//    IPv6 (true | false).
+	//
+	//    * network-info.maximum-network-cards - The maximum number of network cards
+	//    per instance.
 	//
 	//    * network-info.maximum-network-interfaces - The maximum number of network
 	//    interfaces per instance.
@@ -84244,6 +85175,18 @@ type DescribeLaunchTemplateVersionsInput struct {
 	//    * ebs-optimized - A boolean that indicates whether the instance is optimized
 	//    for Amazon EBS I/O.
 	//
+	//    * http-endpoint - Indicates whether the HTTP metadata endpoint on your
+	//    instances is enabled (enabled | disabled).
+	//
+	//    * http-protocol-ipv4 - Indicates whether the IPv4 endpoint for the instance
+	//    metadata service is enabled (enabled | disabled).
+	//
+	//    * host-resource-group-arn - The ARN of the host resource group in which
+	//    to launch the instances.
+	//
+	//    * http-tokens - The state of token usage for your instance metadata requests
+	//    (optional | required).
+	//
 	//    * iam-instance-profile - The ARN of the IAM instance profile.
 	//
 	//    * image-id - The ID of the AMI.
@@ -84254,6 +85197,10 @@ type DescribeLaunchTemplateVersionsInput struct {
 	//    version is the default version.
 	//
 	//    * kernel-id - The kernel ID.
+	//
+	//    * license-configuration-arn - The ARN of the license configuration.
+	//
+	//    * network-card-index - The index of the network card.
 	//
 	//    * ram-disk-id - The RAM disk ID.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
@@ -84587,6 +85534,9 @@ type DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsInput struct
 	//
 	//    * local-gateway-id - The ID of a local gateway.
 	//
+	//    * local-gateway-route-table-arn - The Amazon Resource Name (ARN) of the
+	//    local gateway route table for the virtual interface group.
+	//
 	//    * local-gateway-route-table-id - The ID of the local gateway route table.
 	//
 	//    * local-gateway-route-table-virtual-interface-group-association-id - The
@@ -84594,6 +85544,9 @@ type DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsInput struct
 	//
 	//    * local-gateway-route-table-virtual-interface-group-id - The ID of the
 	//    virtual interface group.
+	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway virtual interface group association.
 	//
 	//    * state - The state of the association.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
@@ -84724,9 +85677,15 @@ type DescribeLocalGatewayRouteTableVpcAssociationsInput struct {
 	//
 	//    * local-gateway-id - The ID of a local gateway.
 	//
+	//    * local-gateway-route-table-arn - The Amazon Resource Name (ARN) of the
+	//    local gateway route table for the association.
+	//
 	//    * local-gateway-route-table-id - The ID of the local gateway route table.
 	//
 	//    * local-gateway-route-table-vpc-association-id - The ID of the association.
+	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway route table for the association.
 	//
 	//    * state - The state of the association.
 	//
@@ -84859,9 +85818,15 @@ type DescribeLocalGatewayRouteTablesInput struct {
 	//
 	//    * local-gateway-id - The ID of a local gateway.
 	//
+	//    * local-gateway-route-table-arn - The Amazon Resource Name (ARN) of the
+	//    local gateway route table.
+	//
 	//    * local-gateway-route-table-id - The ID of a local gateway route table.
 	//
 	//    * outpost-arn - The Amazon Resource Name (ARN) of the Outpost.
+	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway route table.
 	//
 	//    * state - The state of the local gateway route table.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
@@ -84992,10 +85957,13 @@ type DescribeLocalGatewayVirtualInterfaceGroupsInput struct {
 	//
 	//    * local-gateway-id - The ID of a local gateway.
 	//
-	//    * local-gateway-virtual-interface-id - The ID of the virtual interface.
-	//
 	//    * local-gateway-virtual-interface-group-id - The ID of the virtual interface
 	//    group.
+	//
+	//    * local-gateway-virtual-interface-id - The ID of the virtual interface.
+	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway virtual interface group.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The IDs of the virtual interface groups.
@@ -85121,6 +86089,27 @@ type DescribeLocalGatewayVirtualInterfacesInput struct {
 	DryRun *bool `type:"boolean"`
 
 	// One or more filters.
+	//
+	//    * local-address - The local address.
+	//
+	//    * local-bgp-asn - The Border Gateway Protocol (BGP) Autonomous System
+	//    Number (ASN) of the local gateway.
+	//
+	//    * local-gateway-id - The ID of the local gateway.
+	//
+	//    * local-gateway-virtual-interface-id - The ID of the virtual interface.
+	//
+	//    * local-gateway-virtual-interface-group-id - The ID of the virtual interface
+	//    group.
+	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway virtual interface.
+	//
+	//    * peer-address - The peer address.
+	//
+	//    * peer-bgp-asn - The peer BGP ASN.
+	//
+	//    * vlan - The ID of the VLAN.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The IDs of the virtual interfaces.
@@ -85246,23 +86235,18 @@ type DescribeLocalGatewaysInput struct {
 	DryRun *bool `type:"boolean"`
 
 	// One or more filters.
-	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
-
-	// One or more filters.
 	//
 	//    * local-gateway-id - The ID of a local gateway.
 	//
-	//    * local-gateway-route-table-id - The ID of the local gateway route table.
-	//
-	//    * local-gateway-route-table-virtual-interface-group-association-id - The
-	//    ID of the association.
-	//
-	//    * local-gateway-route-table-virtual-interface-group-id - The ID of the
-	//    virtual interface group.
-	//
 	//    * outpost-arn - The Amazon Resource Name (ARN) of the Outpost.
 	//
+	//    * owner-id - The ID of the Amazon Web Services account that owns the local
+	//    gateway.
+	//
 	//    * state - The state of the association.
+	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
+
+	// The IDs of the local gateways.
 	LocalGatewayIds []*string `locationName:"LocalGatewayId" locationNameList:"item" type:"list"`
 
 	// The maximum number of results to return with a single call. To retrieve the
@@ -86865,6 +87849,12 @@ type DescribeNetworkInterfacesInput struct {
 	//    * ipv6-addresses.ipv6-address - An IPv6 address associated with the network
 	//    interface.
 	//
+	//    * interface-type - The type of network interface (api_gateway_managed
+	//    | aws_codestar_connections_managed | branch | efa | gateway_load_balancer
+	//    | gateway_load_balancer_endpoint | global_accelerator_managed | interface
+	//    | iot_rules_managed | lambda | load_balancer | nat_gateway | network_load_balancer
+	//    | quicksight | transit_gateway | trunk | vpc_endpoint).
+	//
 	//    * mac-address - The MAC address of the network interface.
 	//
 	//    * network-interface-id - The ID of the network interface.
@@ -87039,6 +88029,8 @@ type DescribePlacementGroupsInput struct {
 	// The filters.
 	//
 	//    * group-name - The name of the placement group.
+	//
+	//    * group-arn - The Amazon Resource Name (ARN) of the placement group.
 	//
 	//    * state - The state of the placement group (pending | available | deleting
 	//    | deleted).
@@ -89448,8 +90440,9 @@ type DescribeSnapshotTierStatusInput struct {
 	//    * volume-id - The ID of the volume the snapshot is for.
 	//
 	//    * last-tiering-operation - The state of the last archive or restore action.
-	//    (archiving | archival_error | archival_complete | restoring | restore_error
-	//    | restore_complete)
+	//    (archival-in-progress | archival-completed | archival-failed | permanent-restore-in-progress
+	//    | permanent-restore-completed | permanent-restore-failed | temporary-restore-in-progress
+	//    | temporary-restore-completed | temporary-restore-failed)
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The maximum number of results to return with a single call. To retrieve the
@@ -95932,6 +96925,182 @@ func (s *DisableEbsEncryptionByDefaultOutput) SetEbsEncryptionByDefault(v bool) 
 	return s
 }
 
+type DisableFastLaunchInput struct {
+	_ struct{} `type:"structure"`
+
+	// Checks whether you have the required permissions for the action, without
+	// actually making the request, and provides an error response. If you have
+	// the required permissions, the error response is DryRunOperation. Otherwise,
+	// it is UnauthorizedOperation.
+	DryRun *bool `type:"boolean"`
+
+	// Forces the image settings to turn off faster launching for your Windows AMI.
+	// This parameter overrides any errors that are encountered while cleaning up
+	// resources in your account.
+	Force *bool `type:"boolean"`
+
+	// The ID of the image for which you’re turning off faster launching, and
+	// removing pre-provisioned snapshots.
+	//
+	// ImageId is a required field
+	ImageId *string `type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DisableFastLaunchInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DisableFastLaunchInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DisableFastLaunchInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DisableFastLaunchInput"}
+	if s.ImageId == nil {
+		invalidParams.Add(request.NewErrParamRequired("ImageId"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDryRun sets the DryRun field's value.
+func (s *DisableFastLaunchInput) SetDryRun(v bool) *DisableFastLaunchInput {
+	s.DryRun = &v
+	return s
+}
+
+// SetForce sets the Force field's value.
+func (s *DisableFastLaunchInput) SetForce(v bool) *DisableFastLaunchInput {
+	s.Force = &v
+	return s
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *DisableFastLaunchInput) SetImageId(v string) *DisableFastLaunchInput {
+	s.ImageId = &v
+	return s
+}
+
+type DisableFastLaunchOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The ID of the image for which faster-launching has been turned off.
+	ImageId *string `locationName:"imageId" type:"string"`
+
+	// The launch template that was used to launch Windows instances from pre-provisioned
+	// snapshots.
+	LaunchTemplate *FastLaunchLaunchTemplateSpecificationResponse `locationName:"launchTemplate" type:"structure"`
+
+	// The maximum number of parallel instances to launch for creating resources.
+	MaxParallelLaunches *int64 `locationName:"maxParallelLaunches" type:"integer"`
+
+	// The owner of the Windows AMI for which faster launching was turned off.
+	OwnerId *string `locationName:"ownerId" type:"string"`
+
+	// The pre-provisioning resource type that must be cleaned after turning off
+	// faster launching for the Windows AMI. Supported values include: snapshot.
+	ResourceType *string `locationName:"resourceType" type:"string" enum:"FastLaunchResourceType"`
+
+	// Parameters that were used for faster launching for the Windows AMI before
+	// faster launching was turned off. This informs the clean-up process.
+	SnapshotConfiguration *FastLaunchSnapshotConfigurationResponse `locationName:"snapshotConfiguration" type:"structure"`
+
+	// The current state of faster launching for the specified Windows AMI.
+	State *string `locationName:"state" type:"string" enum:"FastLaunchStateCode"`
+
+	// The reason that the state changed for faster launching for the Windows AMI.
+	StateTransitionReason *string `locationName:"stateTransitionReason" type:"string"`
+
+	// The time that the state changed for faster launching for the Windows AMI.
+	StateTransitionTime *time.Time `locationName:"stateTransitionTime" type:"timestamp"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DisableFastLaunchOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s DisableFastLaunchOutput) GoString() string {
+	return s.String()
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *DisableFastLaunchOutput) SetImageId(v string) *DisableFastLaunchOutput {
+	s.ImageId = &v
+	return s
+}
+
+// SetLaunchTemplate sets the LaunchTemplate field's value.
+func (s *DisableFastLaunchOutput) SetLaunchTemplate(v *FastLaunchLaunchTemplateSpecificationResponse) *DisableFastLaunchOutput {
+	s.LaunchTemplate = v
+	return s
+}
+
+// SetMaxParallelLaunches sets the MaxParallelLaunches field's value.
+func (s *DisableFastLaunchOutput) SetMaxParallelLaunches(v int64) *DisableFastLaunchOutput {
+	s.MaxParallelLaunches = &v
+	return s
+}
+
+// SetOwnerId sets the OwnerId field's value.
+func (s *DisableFastLaunchOutput) SetOwnerId(v string) *DisableFastLaunchOutput {
+	s.OwnerId = &v
+	return s
+}
+
+// SetResourceType sets the ResourceType field's value.
+func (s *DisableFastLaunchOutput) SetResourceType(v string) *DisableFastLaunchOutput {
+	s.ResourceType = &v
+	return s
+}
+
+// SetSnapshotConfiguration sets the SnapshotConfiguration field's value.
+func (s *DisableFastLaunchOutput) SetSnapshotConfiguration(v *FastLaunchSnapshotConfigurationResponse) *DisableFastLaunchOutput {
+	s.SnapshotConfiguration = v
+	return s
+}
+
+// SetState sets the State field's value.
+func (s *DisableFastLaunchOutput) SetState(v string) *DisableFastLaunchOutput {
+	s.State = &v
+	return s
+}
+
+// SetStateTransitionReason sets the StateTransitionReason field's value.
+func (s *DisableFastLaunchOutput) SetStateTransitionReason(v string) *DisableFastLaunchOutput {
+	s.StateTransitionReason = &v
+	return s
+}
+
+// SetStateTransitionTime sets the StateTransitionTime field's value.
+func (s *DisableFastLaunchOutput) SetStateTransitionTime(v time.Time) *DisableFastLaunchOutput {
+	s.StateTransitionTime = &v
+	return s
+}
+
 // Contains information about the errors that occurred when disabling fast snapshot
 // restores.
 type DisableFastSnapshotRestoreErrorItem struct {
@@ -98342,7 +99511,7 @@ type EbsBlockDevice struct {
 	// Encrypted volumes can only be attached to instances that support Amazon EBS
 	// encryption. For more information, see Supported instance types (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSEncryption.html#EBSEncryption_supported_instances).
 	//
-	// This parameter is not returned by .
+	// This parameter is not returned by DescribeImageAttribute (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeImageAttribute.html).
 	Encrypted *bool `locationName:"encrypted" type:"boolean"`
 
 	// The number of I/O operations per second (IOPS). For gp3, io1, and io2 volumes,
@@ -99254,6 +100423,219 @@ func (s EnableEbsEncryptionByDefaultOutput) GoString() string {
 // SetEbsEncryptionByDefault sets the EbsEncryptionByDefault field's value.
 func (s *EnableEbsEncryptionByDefaultOutput) SetEbsEncryptionByDefault(v bool) *EnableEbsEncryptionByDefaultOutput {
 	s.EbsEncryptionByDefault = &v
+	return s
+}
+
+type EnableFastLaunchInput struct {
+	_ struct{} `type:"structure"`
+
+	// Checks whether you have the required permissions for the action, without
+	// actually making the request, and provides an error response. If you have
+	// the required permissions, the error response is DryRunOperation. Otherwise,
+	// it is UnauthorizedOperation.
+	DryRun *bool `type:"boolean"`
+
+	// The ID of the image for which you’re enabling faster launching.
+	//
+	// ImageId is a required field
+	ImageId *string `type:"string" required:"true"`
+
+	// The launch template to use when launching Windows instances from pre-provisioned
+	// snapshots. Launch template parameters can include either the name or ID of
+	// the launch template, but not both.
+	LaunchTemplate *FastLaunchLaunchTemplateSpecificationRequest `type:"structure"`
+
+	// The maximum number of parallel instances to launch for creating resources.
+	// Value must be 6 or greater.
+	MaxParallelLaunches *int64 `type:"integer"`
+
+	// The type of resource to use for pre-provisioning the Windows AMI for faster
+	// launching. Supported values include: snapshot, which is the default value.
+	ResourceType *string `type:"string"`
+
+	// Configuration settings for creating and managing the snapshots that are used
+	// for pre-provisioning the Windows AMI for faster launching. The associated
+	// ResourceType must be snapshot.
+	SnapshotConfiguration *FastLaunchSnapshotConfigurationRequest `type:"structure"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s EnableFastLaunchInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s EnableFastLaunchInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *EnableFastLaunchInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "EnableFastLaunchInput"}
+	if s.ImageId == nil {
+		invalidParams.Add(request.NewErrParamRequired("ImageId"))
+	}
+	if s.LaunchTemplate != nil {
+		if err := s.LaunchTemplate.Validate(); err != nil {
+			invalidParams.AddNested("LaunchTemplate", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDryRun sets the DryRun field's value.
+func (s *EnableFastLaunchInput) SetDryRun(v bool) *EnableFastLaunchInput {
+	s.DryRun = &v
+	return s
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *EnableFastLaunchInput) SetImageId(v string) *EnableFastLaunchInput {
+	s.ImageId = &v
+	return s
+}
+
+// SetLaunchTemplate sets the LaunchTemplate field's value.
+func (s *EnableFastLaunchInput) SetLaunchTemplate(v *FastLaunchLaunchTemplateSpecificationRequest) *EnableFastLaunchInput {
+	s.LaunchTemplate = v
+	return s
+}
+
+// SetMaxParallelLaunches sets the MaxParallelLaunches field's value.
+func (s *EnableFastLaunchInput) SetMaxParallelLaunches(v int64) *EnableFastLaunchInput {
+	s.MaxParallelLaunches = &v
+	return s
+}
+
+// SetResourceType sets the ResourceType field's value.
+func (s *EnableFastLaunchInput) SetResourceType(v string) *EnableFastLaunchInput {
+	s.ResourceType = &v
+	return s
+}
+
+// SetSnapshotConfiguration sets the SnapshotConfiguration field's value.
+func (s *EnableFastLaunchInput) SetSnapshotConfiguration(v *FastLaunchSnapshotConfigurationRequest) *EnableFastLaunchInput {
+	s.SnapshotConfiguration = v
+	return s
+}
+
+type EnableFastLaunchOutput struct {
+	_ struct{} `type:"structure"`
+
+	// The image ID that identifies the Windows AMI for which faster launching was
+	// enabled.
+	ImageId *string `locationName:"imageId" type:"string"`
+
+	// The launch template that is used when launching Windows instances from pre-provisioned
+	// snapshots.
+	LaunchTemplate *FastLaunchLaunchTemplateSpecificationResponse `locationName:"launchTemplate" type:"structure"`
+
+	// The maximum number of parallel instances to launch for creating resources.
+	MaxParallelLaunches *int64 `locationName:"maxParallelLaunches" type:"integer"`
+
+	// The owner ID for the Windows AMI for which faster launching was enabled.
+	OwnerId *string `locationName:"ownerId" type:"string"`
+
+	// The type of resource that was defined for pre-provisioning the Windows AMI
+	// for faster launching.
+	ResourceType *string `locationName:"resourceType" type:"string" enum:"FastLaunchResourceType"`
+
+	// The configuration settings that were defined for creating and managing the
+	// pre-provisioned snapshots for faster launching of the Windows AMI. This property
+	// is returned when the associated resourceType is snapshot.
+	SnapshotConfiguration *FastLaunchSnapshotConfigurationResponse `locationName:"snapshotConfiguration" type:"structure"`
+
+	// The current state of faster launching for the specified Windows AMI.
+	State *string `locationName:"state" type:"string" enum:"FastLaunchStateCode"`
+
+	// The reason that the state changed for faster launching for the Windows AMI.
+	StateTransitionReason *string `locationName:"stateTransitionReason" type:"string"`
+
+	// The time that the state changed for faster launching for the Windows AMI.
+	StateTransitionTime *time.Time `locationName:"stateTransitionTime" type:"timestamp"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s EnableFastLaunchOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s EnableFastLaunchOutput) GoString() string {
+	return s.String()
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *EnableFastLaunchOutput) SetImageId(v string) *EnableFastLaunchOutput {
+	s.ImageId = &v
+	return s
+}
+
+// SetLaunchTemplate sets the LaunchTemplate field's value.
+func (s *EnableFastLaunchOutput) SetLaunchTemplate(v *FastLaunchLaunchTemplateSpecificationResponse) *EnableFastLaunchOutput {
+	s.LaunchTemplate = v
+	return s
+}
+
+// SetMaxParallelLaunches sets the MaxParallelLaunches field's value.
+func (s *EnableFastLaunchOutput) SetMaxParallelLaunches(v int64) *EnableFastLaunchOutput {
+	s.MaxParallelLaunches = &v
+	return s
+}
+
+// SetOwnerId sets the OwnerId field's value.
+func (s *EnableFastLaunchOutput) SetOwnerId(v string) *EnableFastLaunchOutput {
+	s.OwnerId = &v
+	return s
+}
+
+// SetResourceType sets the ResourceType field's value.
+func (s *EnableFastLaunchOutput) SetResourceType(v string) *EnableFastLaunchOutput {
+	s.ResourceType = &v
+	return s
+}
+
+// SetSnapshotConfiguration sets the SnapshotConfiguration field's value.
+func (s *EnableFastLaunchOutput) SetSnapshotConfiguration(v *FastLaunchSnapshotConfigurationResponse) *EnableFastLaunchOutput {
+	s.SnapshotConfiguration = v
+	return s
+}
+
+// SetState sets the State field's value.
+func (s *EnableFastLaunchOutput) SetState(v string) *EnableFastLaunchOutput {
+	s.State = &v
+	return s
+}
+
+// SetStateTransitionReason sets the StateTransitionReason field's value.
+func (s *EnableFastLaunchOutput) SetStateTransitionReason(v string) *EnableFastLaunchOutput {
+	s.StateTransitionReason = &v
+	return s
+}
+
+// SetStateTransitionTime sets the StateTransitionTime field's value.
+func (s *EnableFastLaunchOutput) SetStateTransitionTime(v time.Time) *EnableFastLaunchOutput {
+	s.StateTransitionTime = &v
 	return s
 }
 
@@ -102008,6 +103390,198 @@ func (s *FailedQueuedPurchaseDeletion) SetReservedInstancesId(v string) *FailedQ
 	return s
 }
 
+// Request to create a launch template for a fast-launch enabled Windows AMI.
+//
+// Note - You can specify either the LaunchTemplateName or the LaunchTemplateId,
+// but not both.
+type FastLaunchLaunchTemplateSpecificationRequest struct {
+	_ struct{} `type:"structure"`
+
+	// The ID of the launch template to use for faster launching for a Windows AMI.
+	LaunchTemplateId *string `type:"string"`
+
+	// The name of the launch template to use for faster launching for a Windows
+	// AMI.
+	LaunchTemplateName *string `type:"string"`
+
+	// The version of the launch template to use for faster launching for a Windows
+	// AMI.
+	//
+	// Version is a required field
+	Version *string `type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchLaunchTemplateSpecificationRequest) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchLaunchTemplateSpecificationRequest) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *FastLaunchLaunchTemplateSpecificationRequest) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "FastLaunchLaunchTemplateSpecificationRequest"}
+	if s.Version == nil {
+		invalidParams.Add(request.NewErrParamRequired("Version"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetLaunchTemplateId sets the LaunchTemplateId field's value.
+func (s *FastLaunchLaunchTemplateSpecificationRequest) SetLaunchTemplateId(v string) *FastLaunchLaunchTemplateSpecificationRequest {
+	s.LaunchTemplateId = &v
+	return s
+}
+
+// SetLaunchTemplateName sets the LaunchTemplateName field's value.
+func (s *FastLaunchLaunchTemplateSpecificationRequest) SetLaunchTemplateName(v string) *FastLaunchLaunchTemplateSpecificationRequest {
+	s.LaunchTemplateName = &v
+	return s
+}
+
+// SetVersion sets the Version field's value.
+func (s *FastLaunchLaunchTemplateSpecificationRequest) SetVersion(v string) *FastLaunchLaunchTemplateSpecificationRequest {
+	s.Version = &v
+	return s
+}
+
+// Identifies the launch template to use for faster launching of the Windows
+// AMI.
+type FastLaunchLaunchTemplateSpecificationResponse struct {
+	_ struct{} `type:"structure"`
+
+	// The ID of the launch template for faster launching of the associated Windows
+	// AMI.
+	LaunchTemplateId *string `locationName:"launchTemplateId" type:"string"`
+
+	// The name of the launch template for faster launching of the associated Windows
+	// AMI.
+	LaunchTemplateName *string `locationName:"launchTemplateName" type:"string"`
+
+	// The version of the launch template for faster launching of the associated
+	// Windows AMI.
+	Version *string `locationName:"version" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchLaunchTemplateSpecificationResponse) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchLaunchTemplateSpecificationResponse) GoString() string {
+	return s.String()
+}
+
+// SetLaunchTemplateId sets the LaunchTemplateId field's value.
+func (s *FastLaunchLaunchTemplateSpecificationResponse) SetLaunchTemplateId(v string) *FastLaunchLaunchTemplateSpecificationResponse {
+	s.LaunchTemplateId = &v
+	return s
+}
+
+// SetLaunchTemplateName sets the LaunchTemplateName field's value.
+func (s *FastLaunchLaunchTemplateSpecificationResponse) SetLaunchTemplateName(v string) *FastLaunchLaunchTemplateSpecificationResponse {
+	s.LaunchTemplateName = &v
+	return s
+}
+
+// SetVersion sets the Version field's value.
+func (s *FastLaunchLaunchTemplateSpecificationResponse) SetVersion(v string) *FastLaunchLaunchTemplateSpecificationResponse {
+	s.Version = &v
+	return s
+}
+
+// Configuration settings for creating and managing pre-provisioned snapshots
+// for a fast-launch enabled Windows AMI.
+type FastLaunchSnapshotConfigurationRequest struct {
+	_ struct{} `type:"structure"`
+
+	// The number of pre-provisioned snapshots to keep on hand for a fast-launch
+	// enabled Windows AMI.
+	TargetResourceCount *int64 `type:"integer"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchSnapshotConfigurationRequest) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchSnapshotConfigurationRequest) GoString() string {
+	return s.String()
+}
+
+// SetTargetResourceCount sets the TargetResourceCount field's value.
+func (s *FastLaunchSnapshotConfigurationRequest) SetTargetResourceCount(v int64) *FastLaunchSnapshotConfigurationRequest {
+	s.TargetResourceCount = &v
+	return s
+}
+
+// Configuration settings for creating and managing pre-provisioned snapshots
+// for a fast-launch enabled Windows AMI.
+type FastLaunchSnapshotConfigurationResponse struct {
+	_ struct{} `type:"structure"`
+
+	// The number of pre-provisioned snapshots requested to keep on hand for a fast-launch
+	// enabled Windows AMI.
+	TargetResourceCount *int64 `locationName:"targetResourceCount" type:"integer"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchSnapshotConfigurationResponse) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s FastLaunchSnapshotConfigurationResponse) GoString() string {
+	return s.String()
+}
+
+// SetTargetResourceCount sets the TargetResourceCount field's value.
+func (s *FastLaunchSnapshotConfigurationResponse) SetTargetResourceCount(v int64) *FastLaunchSnapshotConfigurationResponse {
+	s.TargetResourceCount = &v
+	return s
+}
+
 // Describes the IAM SAML identity providers used for federated authentication.
 type FederatedAuthentication struct {
 	_ struct{} `type:"structure"`
@@ -102095,13 +103669,18 @@ func (s *FederatedAuthenticationRequest) SetSelfServiceSAMLProviderArn(v string)
 // A filter name and value pair that is used to return a more specific list
 // of results from a describe operation. Filters can be used to match a set
 // of resources by specific criteria, such as tags, attributes, or IDs.
+//
+// If you specify multiple filters, the filters are joined with an AND, and
+// the request returns only results that match all of the specified filters.
 type Filter struct {
 	_ struct{} `type:"structure"`
 
 	// The name of the filter. Filter names are case-sensitive.
 	Name *string `type:"string"`
 
-	// The filter values. Filter values are case-sensitive.
+	// The filter values. Filter values are case-sensitive. If you specify multiple
+	// values for a filter, the values are joined with an OR, and the request returns
+	// all results that match any of the specified values.
 	Values []*string `locationName:"Value" locationNameList:"item" type:"list"`
 }
 
@@ -102279,7 +103858,7 @@ type FleetData struct {
 	ActivityStatus *string `locationName:"activityStatus" type:"string" enum:"FleetActivityStatus"`
 
 	// Unique, case-sensitive identifier that you provide to ensure the idempotency
-	// of the request. For more information, see Ensuring Idempotency (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Run_Instance_Idempotency.html).
+	// of the request. For more information, see Ensuring idempotency (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Run_Instance_Idempotency.html).
 	//
 	// Constraints: Maximum 64 ASCII characters
 	ClientToken *string `locationName:"clientToken" type:"string"`
@@ -103041,7 +104620,9 @@ type FleetSpotCapacityRebalance struct {
 	// The amount of time (in seconds) that Amazon EC2 waits before terminating
 	// the old Spot Instance after launching a new replacement Spot Instance.
 	//
-	// Valid only when replacementStrategy is set to launch-before-terminate.
+	// Required when ReplacementStrategy is set to launch-before-terminate.
+	//
+	// Not valid when ReplacementStrategy is set to launch.
 	//
 	// Valid values: Minimum value of 120 seconds. Maximum value of 7200 seconds.
 	TerminationDelay *int64 `locationName:"terminationDelay" type:"integer"`
@@ -103079,7 +104660,7 @@ func (s *FleetSpotCapacityRebalance) SetTerminationDelay(v int64) *FleetSpotCapa
 
 // The Spot Instance replacement strategy to use when Amazon EC2 emits a rebalance
 // notification signal that your Spot Instance is at an elevated risk of being
-// interrupted. For more information, see Capacity rebalancing (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-configuration-strategies.html#ec2-fleet-capacity-rebalance)
+// interrupted. For more information, see Capacity rebalancing (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-capacity-rebalance.html)
 // in the Amazon EC2 User Guide.
 type FleetSpotCapacityRebalanceRequest struct {
 	_ struct{} `type:"structure"`
@@ -103101,7 +104682,9 @@ type FleetSpotCapacityRebalanceRequest struct {
 	// The amount of time (in seconds) that Amazon EC2 waits before terminating
 	// the old Spot Instance after launching a new replacement Spot Instance.
 	//
-	// Valid only when ReplacementStrategy is set to launch-before-terminate.
+	// Required when ReplacementStrategy is set to launch-before-terminate.
+	//
+	// Not valid when ReplacementStrategy is set to launch.
 	//
 	// Valid values: Minimum value of 120 seconds. Maximum value of 7200 seconds.
 	TerminationDelay *int64 `type:"integer"`
@@ -104197,15 +105780,17 @@ type GetCoipPoolUsageInput struct {
 	// it is UnauthorizedOperation.
 	DryRun *bool `type:"boolean"`
 
-	// The filters. The following are the possible values:
+	// One or more filters.
 	//
-	//    * coip-address-usage.allocation-id
+	//    * coip-address-usage.allocation-id - The allocation ID of the address.
 	//
-	//    * coip-address-usage.aws-account-id
+	//    * coip-address-usage.aws-account-id - The ID of the Amazon Web Services
+	//    account that is using the customer-owned IP address.
 	//
-	//    * coip-address-usage.aws-service
+	//    * coip-address-usage.aws-service - The Amazon Web Services service that
+	//    is using the customer-owned IP address.
 	//
-	//    * coip-address-usage.co-ip
+	//    * coip-address-usage.co-ip - The customer-owned IP address.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The maximum number of results to return with a single call. To retrieve the
@@ -109703,6 +111288,75 @@ func (s *ImageDiskContainer) SetUserBucket(v *UserBucket) *ImageDiskContainer {
 	return s
 }
 
+// Information about an AMI that is currently in the Recycle Bin.
+type ImageRecycleBinInfo struct {
+	_ struct{} `type:"structure"`
+
+	// The description of the AMI.
+	Description *string `locationName:"description" type:"string"`
+
+	// The ID of the AMI.
+	ImageId *string `locationName:"imageId" type:"string"`
+
+	// The name of the AMI.
+	Name *string `locationName:"name" type:"string"`
+
+	// The date and time when the AMI entered the Recycle Bin.
+	RecycleBinEnterTime *time.Time `locationName:"recycleBinEnterTime" type:"timestamp"`
+
+	// The date and time when the AMI is to be permanently deleted from the Recycle
+	// Bin.
+	RecycleBinExitTime *time.Time `locationName:"recycleBinExitTime" type:"timestamp"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ImageRecycleBinInfo) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ImageRecycleBinInfo) GoString() string {
+	return s.String()
+}
+
+// SetDescription sets the Description field's value.
+func (s *ImageRecycleBinInfo) SetDescription(v string) *ImageRecycleBinInfo {
+	s.Description = &v
+	return s
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *ImageRecycleBinInfo) SetImageId(v string) *ImageRecycleBinInfo {
+	s.ImageId = &v
+	return s
+}
+
+// SetName sets the Name field's value.
+func (s *ImageRecycleBinInfo) SetName(v string) *ImageRecycleBinInfo {
+	s.Name = &v
+	return s
+}
+
+// SetRecycleBinEnterTime sets the RecycleBinEnterTime field's value.
+func (s *ImageRecycleBinInfo) SetRecycleBinEnterTime(v time.Time) *ImageRecycleBinInfo {
+	s.RecycleBinEnterTime = &v
+	return s
+}
+
+// SetRecycleBinExitTime sets the RecycleBinExitTime field's value.
+func (s *ImageRecycleBinInfo) SetRecycleBinExitTime(v time.Time) *ImageRecycleBinInfo {
+	s.RecycleBinExitTime = &v
+	return s
+}
+
 type ImportClientVpnClientCertificateRevocationListInput struct {
 	_ struct{} `type:"structure"`
 
@@ -109814,7 +111468,7 @@ type ImportImageInput struct {
 
 	// The architecture of the virtual machine.
 	//
-	// Valid values: i386 | x86_64 | arm64
+	// Valid values: i386 | x86_64
 	Architecture *string `type:"string"`
 
 	// The boot mode of the virtual machine.
@@ -112998,11 +114652,11 @@ func (s *InstanceMarketOptionsRequest) SetSpotOptions(v *SpotMarketOptions) *Ins
 type InstanceMetadataOptionsRequest struct {
 	_ struct{} `type:"structure"`
 
-	// Enables or disables the HTTP metadata endpoint on your instances. If the
-	// parameter is not specified, the default state is enabled.
+	// Enables or disables the HTTP metadata endpoint on your instances.
 	//
-	// If you specify a value of disabled, you will not be able to access your instance
-	// metadata.
+	// If you specify a value of disabled, you cannot access your instance metadata.
+	//
+	// Default: enabled
 	HttpEndpoint *string `type:"string" enum:"InstanceMetadataEndpointState"`
 
 	// Enables or disables the IPv6 endpoint for the instance metadata service.
@@ -113016,8 +114670,7 @@ type InstanceMetadataOptionsRequest struct {
 	// Possible values: Integers from 1 to 64
 	HttpPutResponseHopLimit *int64 `type:"integer"`
 
-	// The state of token usage for your instance metadata requests. If the parameter
-	// is not specified in the request, the default state is optional.
+	// The state of token usage for your instance metadata requests.
 	//
 	// If the state is optional, you can choose to retrieve instance metadata with
 	// or without a signed token header on your request. If you retrieve the IAM
@@ -113029,7 +114682,17 @@ type InstanceMetadataOptionsRequest struct {
 	// metadata retrieval requests. In this state, retrieving the IAM role credentials
 	// always returns the version 2.0 credentials; the version 1.0 credentials are
 	// not available.
+	//
+	// Default: optional
 	HttpTokens *string `type:"string" enum:"HttpTokensState"`
+
+	// Set to enabled to allow access to instance tags from the instance metadata.
+	// Set to disabled to turn off access to instance tags from the instance metadata.
+	// For more information, see Work with instance tags using the instance metadata
+	// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+	//
+	// Default: disabled
+	InstanceMetadataTags *string `type:"string" enum:"InstanceMetadataTagsState"`
 }
 
 // String returns the string representation.
@@ -113074,12 +114737,20 @@ func (s *InstanceMetadataOptionsRequest) SetHttpTokens(v string) *InstanceMetada
 	return s
 }
 
+// SetInstanceMetadataTags sets the InstanceMetadataTags field's value.
+func (s *InstanceMetadataOptionsRequest) SetInstanceMetadataTags(v string) *InstanceMetadataOptionsRequest {
+	s.InstanceMetadataTags = &v
+	return s
+}
+
 // The metadata options for the instance.
 type InstanceMetadataOptionsResponse struct {
 	_ struct{} `type:"structure"`
 
 	// Indicates whether the HTTP metadata endpoint on your instances is enabled
 	// or disabled.
+	//
+	// If the value is disabled, you cannot access your instance metadata.
 	HttpEndpoint *string `locationName:"httpEndpoint" type:"string" enum:"InstanceMetadataEndpointState"`
 
 	// Indicates whether the IPv6 endpoint for the instance metadata service is
@@ -113094,8 +114765,7 @@ type InstanceMetadataOptionsResponse struct {
 	// Possible values: Integers from 1 to 64
 	HttpPutResponseHopLimit *int64 `locationName:"httpPutResponseHopLimit" type:"integer"`
 
-	// The state of token usage for your instance metadata requests. If the parameter
-	// is not specified in the request, the default state is optional.
+	// The state of token usage for your instance metadata requests.
 	//
 	// If the state is optional, you can choose to retrieve instance metadata with
 	// or without a signed token header on your request. If you retrieve the IAM
@@ -113107,7 +114777,14 @@ type InstanceMetadataOptionsResponse struct {
 	// metadata retrieval requests. In this state, retrieving the IAM role credential
 	// always returns the version 2.0 credentials; the version 1.0 credentials are
 	// not available.
+	//
+	// Default: optional
 	HttpTokens *string `locationName:"httpTokens" type:"string" enum:"HttpTokensState"`
+
+	// Indicates whether access to instance tags from the instance metadata is enabled
+	// or disabled. For more information, see Work with instance tags using the
+	// instance metadata (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+	InstanceMetadataTags *string `locationName:"instanceMetadataTags" type:"string" enum:"InstanceMetadataTagsState"`
 
 	// The state of the metadata option changes.
 	//
@@ -113157,6 +114834,12 @@ func (s *InstanceMetadataOptionsResponse) SetHttpPutResponseHopLimit(v int64) *I
 // SetHttpTokens sets the HttpTokens field's value.
 func (s *InstanceMetadataOptionsResponse) SetHttpTokens(v string) *InstanceMetadataOptionsResponse {
 	s.HttpTokens = &v
+	return s
+}
+
+// SetInstanceMetadataTags sets the InstanceMetadataTags field's value.
+func (s *InstanceMetadataOptionsResponse) SetInstanceMetadataTags(v string) *InstanceMetadataOptionsResponse {
+	s.InstanceMetadataTags = &v
 	return s
 }
 
@@ -113224,7 +114907,7 @@ type InstanceNetworkInterface struct {
 	// One or more security groups.
 	Groups []*GroupIdentifier `locationName:"groupSet" locationNameList:"item" type:"list"`
 
-	// Describes the type of network interface.
+	// The type of network interface.
 	//
 	// Valid values: interface | efa | trunk
 	InterfaceType *string `locationName:"interfaceType" type:"string"`
@@ -113580,10 +115263,6 @@ type InstanceNetworkInterfaceSpecification struct {
 	Groups []*string `locationName:"SecurityGroupId" locationNameList:"SecurityGroupId" type:"list"`
 
 	// The type of network interface.
-	//
-	// To create an Elastic Fabric Adapter (EFA), specify efa. For more information,
-	// see Elastic Fabric Adapter (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html)
-	// in the Amazon Elastic Compute Cloud User Guide.
 	//
 	// Valid values: interface | efa
 	InterfaceType *string `type:"string"`
@@ -117599,12 +119278,12 @@ func (s *LaunchPermission) SetUserId(v string) *LaunchPermission {
 type LaunchPermissionModifications struct {
 	_ struct{} `type:"structure"`
 
-	// The Amazon Web Services account ID to add to the list of launch permissions
-	// for the AMI.
+	// The Amazon Web Services account ID, organization ARN, or OU ARN to add to
+	// the list of launch permissions for the AMI.
 	Add []*LaunchPermission `locationNameList:"item" type:"list"`
 
-	// The Amazon Web Services account ID to remove from the list of launch permissions
-	// for the AMI.
+	// The Amazon Web Services account ID, organization ARN, or OU ARN to remove
+	// from the list of launch permissions for the AMI.
 	Remove []*LaunchPermission `locationNameList:"item" type:"list"`
 }
 
@@ -118936,8 +120615,8 @@ func (s *LaunchTemplateInstanceMarketOptionsRequest) SetSpotOptions(v *LaunchTem
 type LaunchTemplateInstanceMetadataOptions struct {
 	_ struct{} `type:"structure"`
 
-	// This parameter enables or disables the HTTP metadata endpoint on your instances.
-	// If the parameter is not specified, the default state is enabled.
+	// Enables or disables the HTTP metadata endpoint on your instances. If the
+	// parameter is not specified, the default state is enabled.
 	//
 	// If you specify a value of disabled, you will not be able to access your instance
 	// metadata.
@@ -118970,6 +120649,14 @@ type LaunchTemplateInstanceMetadataOptions struct {
 	// always returns the version 2.0 credentials; the version 1.0 credentials are
 	// not available.
 	HttpTokens *string `locationName:"httpTokens" type:"string" enum:"LaunchTemplateHttpTokensState"`
+
+	// Set to enabled to allow access to instance tags from the instance metadata.
+	// Set to disabled to turn off access to instance tags from the instance metadata.
+	// For more information, see Work with instance tags using the instance metadata
+	// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+	//
+	// Default: disabled
+	InstanceMetadataTags *string `locationName:"instanceMetadataTags" type:"string" enum:"LaunchTemplateInstanceMetadataTagsState"`
 
 	// The state of the metadata option changes.
 	//
@@ -119022,6 +120709,12 @@ func (s *LaunchTemplateInstanceMetadataOptions) SetHttpTokens(v string) *LaunchT
 	return s
 }
 
+// SetInstanceMetadataTags sets the InstanceMetadataTags field's value.
+func (s *LaunchTemplateInstanceMetadataOptions) SetInstanceMetadataTags(v string) *LaunchTemplateInstanceMetadataOptions {
+	s.InstanceMetadataTags = &v
+	return s
+}
+
 // SetState sets the State field's value.
 func (s *LaunchTemplateInstanceMetadataOptions) SetState(v string) *LaunchTemplateInstanceMetadataOptions {
 	s.State = &v
@@ -119034,8 +120727,8 @@ func (s *LaunchTemplateInstanceMetadataOptions) SetState(v string) *LaunchTempla
 type LaunchTemplateInstanceMetadataOptionsRequest struct {
 	_ struct{} `type:"structure"`
 
-	// This parameter enables or disables the HTTP metadata endpoint on your instances.
-	// If the parameter is not specified, the default state is enabled.
+	// Enables or disables the HTTP metadata endpoint on your instances. If the
+	// parameter is not specified, the default state is enabled.
 	//
 	// If you specify a value of disabled, you will not be able to access your instance
 	// metadata.
@@ -119068,6 +120761,14 @@ type LaunchTemplateInstanceMetadataOptionsRequest struct {
 	// always returns the version 2.0 credentials; the version 1.0 credentials are
 	// not available.
 	HttpTokens *string `type:"string" enum:"LaunchTemplateHttpTokensState"`
+
+	// Set to enabled to allow access to instance tags from the instance metadata.
+	// Set to disabled to turn off access to instance tags from the instance metadata.
+	// For more information, see Work with instance tags using the instance metadata
+	// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+	//
+	// Default: disabled
+	InstanceMetadataTags *string `type:"string" enum:"LaunchTemplateInstanceMetadataTagsState"`
 }
 
 // String returns the string representation.
@@ -119109,6 +120810,12 @@ func (s *LaunchTemplateInstanceMetadataOptionsRequest) SetHttpPutResponseHopLimi
 // SetHttpTokens sets the HttpTokens field's value.
 func (s *LaunchTemplateInstanceMetadataOptionsRequest) SetHttpTokens(v string) *LaunchTemplateInstanceMetadataOptionsRequest {
 	s.HttpTokens = &v
+	return s
+}
+
+// SetInstanceMetadataTags sets the InstanceMetadataTags field's value.
+func (s *LaunchTemplateInstanceMetadataOptionsRequest) SetInstanceMetadataTags(v string) *LaunchTemplateInstanceMetadataOptionsRequest {
+	s.InstanceMetadataTags = &v
 	return s
 }
 
@@ -120248,8 +121955,8 @@ type LaunchTemplateTagSpecificationRequest struct {
 	_ struct{} `type:"structure"`
 
 	// The type of resource to tag. Currently, the resource types that support tagging
-	// on creation are instance and volume. To tag a resource after it has been
-	// created, see CreateTags (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateTags.html).
+	// on creation are instance, volume, elastic-gpu, network-interface, and spot-instances-request.
+	// To tag a resource after it has been created, see CreateTags (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateTags.html).
 	ResourceType *string `type:"string" enum:"ResourceType"`
 
 	// The tags to apply to the resource.
@@ -120508,6 +122215,126 @@ func (s LicenseConfigurationRequest) GoString() string {
 // SetLicenseConfigurationArn sets the LicenseConfigurationArn field's value.
 func (s *LicenseConfigurationRequest) SetLicenseConfigurationArn(v string) *LicenseConfigurationRequest {
 	s.LicenseConfigurationArn = &v
+	return s
+}
+
+type ListImagesInRecycleBinInput struct {
+	_ struct{} `type:"structure"`
+
+	// Checks whether you have the required permissions for the action, without
+	// actually making the request, and provides an error response. If you have
+	// the required permissions, the error response is DryRunOperation. Otherwise,
+	// it is UnauthorizedOperation.
+	DryRun *bool `type:"boolean"`
+
+	// The IDs of the AMIs to list. Omit this parameter to list all of the AMIs
+	// that are in the Recycle Bin. You can specify up to 20 IDs in a single request.
+	ImageIds []*string `locationName:"ImageId" locationNameList:"ImageId" type:"list"`
+
+	// The maximum number of results to return with a single call. To retrieve the
+	// remaining results, make another call with the returned nextToken value.
+	//
+	// If you do not specify a value for MaxResults, the request returns 1,000 items
+	// per page by default. For more information, see Pagination (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Query-Requests.html#api-pagination).
+	MaxResults *int64 `min:"1" type:"integer"`
+
+	// The token for the next page of results.
+	NextToken *string `type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ListImagesInRecycleBinInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ListImagesInRecycleBinInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *ListImagesInRecycleBinInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "ListImagesInRecycleBinInput"}
+	if s.MaxResults != nil && *s.MaxResults < 1 {
+		invalidParams.Add(request.NewErrParamMinValue("MaxResults", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDryRun sets the DryRun field's value.
+func (s *ListImagesInRecycleBinInput) SetDryRun(v bool) *ListImagesInRecycleBinInput {
+	s.DryRun = &v
+	return s
+}
+
+// SetImageIds sets the ImageIds field's value.
+func (s *ListImagesInRecycleBinInput) SetImageIds(v []*string) *ListImagesInRecycleBinInput {
+	s.ImageIds = v
+	return s
+}
+
+// SetMaxResults sets the MaxResults field's value.
+func (s *ListImagesInRecycleBinInput) SetMaxResults(v int64) *ListImagesInRecycleBinInput {
+	s.MaxResults = &v
+	return s
+}
+
+// SetNextToken sets the NextToken field's value.
+func (s *ListImagesInRecycleBinInput) SetNextToken(v string) *ListImagesInRecycleBinInput {
+	s.NextToken = &v
+	return s
+}
+
+type ListImagesInRecycleBinOutput struct {
+	_ struct{} `type:"structure"`
+
+	// Information about the AMIs.
+	Images []*ImageRecycleBinInfo `locationName:"imageSet" locationNameList:"item" type:"list"`
+
+	// The token to use to retrieve the next page of results. This value is null
+	// when there are no more results to return.
+	NextToken *string `locationName:"nextToken" type:"string"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ListImagesInRecycleBinOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s ListImagesInRecycleBinOutput) GoString() string {
+	return s.String()
+}
+
+// SetImages sets the Images field's value.
+func (s *ListImagesInRecycleBinOutput) SetImages(v []*ImageRecycleBinInfo) *ListImagesInRecycleBinOutput {
+	s.Images = v
+	return s
+}
+
+// SetNextToken sets the NextToken field's value.
+func (s *ListImagesInRecycleBinOutput) SetNextToken(v string) *ListImagesInRecycleBinOutput {
+	s.NextToken = &v
 	return s
 }
 
@@ -122253,6 +124080,10 @@ type ModifyClientVpnEndpointInput struct {
 	// The options for managing connection authorization for new client connections.
 	ClientConnectOptions *ClientConnectOptions `type:"structure"`
 
+	// Options for enabling a customizable text banner that will be displayed on
+	// Amazon Web Services provided clients when a VPN session is established.
+	ClientLoginBannerOptions *ClientLoginBannerOptions `type:"structure"`
+
 	// The ID of the Client VPN endpoint to modify.
 	//
 	// ClientVpnEndpointId is a required field
@@ -122294,6 +124125,13 @@ type ModifyClientVpnEndpointInput struct {
 	// The ARN of the server certificate to be used. The server certificate must
 	// be provisioned in Certificate Manager (ACM).
 	ServerCertificateArn *string `type:"string"`
+
+	// The maximum VPN session duration time in hours.
+	//
+	// Valid values: 8 | 10 | 12 | 24
+	//
+	// Default value: 24
+	SessionTimeoutHours *int64 `type:"integer"`
 
 	// Indicates whether the VPN is split-tunnel.
 	//
@@ -122350,6 +124188,12 @@ func (s *ModifyClientVpnEndpointInput) SetClientConnectOptions(v *ClientConnectO
 	return s
 }
 
+// SetClientLoginBannerOptions sets the ClientLoginBannerOptions field's value.
+func (s *ModifyClientVpnEndpointInput) SetClientLoginBannerOptions(v *ClientLoginBannerOptions) *ModifyClientVpnEndpointInput {
+	s.ClientLoginBannerOptions = v
+	return s
+}
+
 // SetClientVpnEndpointId sets the ClientVpnEndpointId field's value.
 func (s *ModifyClientVpnEndpointInput) SetClientVpnEndpointId(v string) *ModifyClientVpnEndpointInput {
 	s.ClientVpnEndpointId = &v
@@ -122395,6 +124239,12 @@ func (s *ModifyClientVpnEndpointInput) SetSelfServicePortal(v string) *ModifyCli
 // SetServerCertificateArn sets the ServerCertificateArn field's value.
 func (s *ModifyClientVpnEndpointInput) SetServerCertificateArn(v string) *ModifyClientVpnEndpointInput {
 	s.ServerCertificateArn = &v
+	return s
+}
+
+// SetSessionTimeoutHours sets the SessionTimeoutHours field's value.
+func (s *ModifyClientVpnEndpointInput) SetSessionTimeoutHours(v int64) *ModifyClientVpnEndpointInput {
+	s.SessionTimeoutHours = &v
 	return s
 }
 
@@ -124205,7 +126055,7 @@ type ModifyInstanceMetadataOptionsInput struct {
 	// it is UnauthorizedOperation.
 	DryRun *bool `type:"boolean"`
 
-	// Enables or disables the HTTP metadata endpoint on your instances. If the
+	// Enables or disables the HTTP metadata endpoint on your instances. If this
 	// parameter is not specified, the existing state is maintained.
 	//
 	// If you specify a value of disabled, you cannot access your instance metadata.
@@ -124241,6 +126091,14 @@ type ModifyInstanceMetadataOptionsInput struct {
 	//
 	// InstanceId is a required field
 	InstanceId *string `type:"string" required:"true"`
+
+	// Set to enabled to allow access to instance tags from the instance metadata.
+	// Set to disabled to turn off access to instance tags from the instance metadata.
+	// For more information, see Work with instance tags using the instance metadata
+	// (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html#work-with-tags-in-IMDS).
+	//
+	// Default: disabled
+	InstanceMetadataTags *string `type:"string" enum:"InstanceMetadataTagsState"`
 }
 
 // String returns the string representation.
@@ -124307,6 +126165,12 @@ func (s *ModifyInstanceMetadataOptionsInput) SetHttpTokens(v string) *ModifyInst
 // SetInstanceId sets the InstanceId field's value.
 func (s *ModifyInstanceMetadataOptionsInput) SetInstanceId(v string) *ModifyInstanceMetadataOptionsInput {
 	s.InstanceId = &v
+	return s
+}
+
+// SetInstanceMetadataTags sets the InstanceMetadataTags field's value.
+func (s *ModifyInstanceMetadataOptionsInput) SetInstanceMetadataTags(v string) *ModifyInstanceMetadataOptionsInput {
+	s.InstanceMetadataTags = &v
 	return s
 }
 
@@ -129003,7 +130867,7 @@ type ModifyVpnTunnelOptionsSpecification struct {
 
 	// The number of seconds after which a DPD timeout occurs.
 	//
-	// Constraints: A value between 0 and 30.
+	// Constraints: A value greater than or equal to 30.
 	//
 	// Default: 30
 	DPDTimeoutSeconds *int64 `type:"integer"`
@@ -129486,7 +131350,9 @@ type MoveByoipCidrToIpamInput struct {
 	_ struct{} `type:"structure"`
 
 	// The BYOIP CIDR.
-	Cidr *string `type:"string"`
+	//
+	// Cidr is a required field
+	Cidr *string `type:"string" required:"true"`
 
 	// A check for whether you have the required permissions for the action without
 	// actually making the request and provides an error response. If you have the
@@ -129495,10 +131361,14 @@ type MoveByoipCidrToIpamInput struct {
 	DryRun *bool `type:"boolean"`
 
 	// The IPAM pool ID.
-	IpamPoolId *string `type:"string"`
+	//
+	// IpamPoolId is a required field
+	IpamPoolId *string `type:"string" required:"true"`
 
 	// The Amazon Web Services account ID of the owner of the IPAM pool.
-	IpamPoolOwner *string `type:"string"`
+	//
+	// IpamPoolOwner is a required field
+	IpamPoolOwner *string `type:"string" required:"true"`
 }
 
 // String returns the string representation.
@@ -129517,6 +131387,25 @@ func (s MoveByoipCidrToIpamInput) String() string {
 // value will be replaced with "sensitive".
 func (s MoveByoipCidrToIpamInput) GoString() string {
 	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *MoveByoipCidrToIpamInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "MoveByoipCidrToIpamInput"}
+	if s.Cidr == nil {
+		invalidParams.Add(request.NewErrParamRequired("Cidr"))
+	}
+	if s.IpamPoolId == nil {
+		invalidParams.Add(request.NewErrParamRequired("IpamPoolId"))
+	}
+	if s.IpamPoolOwner == nil {
+		invalidParams.Add(request.NewErrParamRequired("IpamPoolOwner"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
 }
 
 // SetCidr sets the Cidr field's value.
@@ -132957,6 +134846,9 @@ func (s *Placement) SetTenancy(v string) *Placement {
 type PlacementGroup struct {
 	_ struct{} `type:"structure"`
 
+	// The Amazon Resource Name (ARN) of the placement group.
+	GroupArn *string `locationName:"groupArn" type:"string"`
+
 	// The ID of the placement group.
 	GroupId *string `locationName:"groupId" type:"string"`
 
@@ -132992,6 +134884,12 @@ func (s PlacementGroup) String() string {
 // value will be replaced with "sensitive".
 func (s PlacementGroup) GoString() string {
 	return s.String()
+}
+
+// SetGroupArn sets the GroupArn field's value.
+func (s *PlacementGroup) SetGroupArn(v string) *PlacementGroup {
+	s.GroupArn = &v
+	return s
 }
 
 // SetGroupId sets the GroupId field's value.
@@ -141062,6 +142960,95 @@ func (s *RestoreAddressToClassicOutput) SetStatus(v string) *RestoreAddressToCla
 	return s
 }
 
+type RestoreImageFromRecycleBinInput struct {
+	_ struct{} `type:"structure"`
+
+	// Checks whether you have the required permissions for the action, without
+	// actually making the request, and provides an error response. If you have
+	// the required permissions, the error response is DryRunOperation. Otherwise,
+	// it is UnauthorizedOperation.
+	DryRun *bool `type:"boolean"`
+
+	// The ID of the AMI to restore.
+	//
+	// ImageId is a required field
+	ImageId *string `type:"string" required:"true"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RestoreImageFromRecycleBinInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RestoreImageFromRecycleBinInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *RestoreImageFromRecycleBinInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "RestoreImageFromRecycleBinInput"}
+	if s.ImageId == nil {
+		invalidParams.Add(request.NewErrParamRequired("ImageId"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDryRun sets the DryRun field's value.
+func (s *RestoreImageFromRecycleBinInput) SetDryRun(v bool) *RestoreImageFromRecycleBinInput {
+	s.DryRun = &v
+	return s
+}
+
+// SetImageId sets the ImageId field's value.
+func (s *RestoreImageFromRecycleBinInput) SetImageId(v string) *RestoreImageFromRecycleBinInput {
+	s.ImageId = &v
+	return s
+}
+
+type RestoreImageFromRecycleBinOutput struct {
+	_ struct{} `type:"structure"`
+
+	// Returns true if the request succeeds; otherwise, it returns an error.
+	Return *bool `locationName:"return" type:"boolean"`
+}
+
+// String returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RestoreImageFromRecycleBinOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation.
+//
+// API parameter values that are decorated as "sensitive" in the API will not
+// be included in the string output. The member name will be present, but the
+// value will be replaced with "sensitive".
+func (s RestoreImageFromRecycleBinOutput) GoString() string {
+	return s.String()
+}
+
+// SetReturn sets the Return field's value.
+func (s *RestoreImageFromRecycleBinOutput) SetReturn(v bool) *RestoreImageFromRecycleBinOutput {
+	s.Return = &v
+	return s
+}
+
 type RestoreManagedPrefixListVersionInput struct {
 	_ struct{} `type:"structure"`
 
@@ -144332,6 +146319,23 @@ type SearchLocalGatewayRoutesInput struct {
 	DryRun *bool `type:"boolean"`
 
 	// One or more filters.
+	//
+	//    * route-search.exact-match - The exact match of the specified filter.
+	//
+	//    * route-search.longest-prefix-match - The longest prefix that matches
+	//    the route.
+	//
+	//    * route-search.subnet-of-match - The routes with a subnet that match the
+	//    specified CIDR filter.
+	//
+	//    * route-search.supernet-of-match - The routes with a CIDR that encompass
+	//    the CIDR filter. For example, if you have 10.0.1.0/29 and 10.0.1.0/31
+	//    routes in your route table and you specify supernet-of-match as 10.0.1.0/30,
+	//    then the result returns 10.0.1.0/29.
+	//
+	//    * state - The state of the route.
+	//
+	//    * type - The route type.
 	Filters []*Filter `locationName:"Filter" locationNameList:"Filter" type:"list"`
 
 	// The ID of the local gateway route table.
@@ -146633,7 +148637,7 @@ func (s *SnapshotTierStatus) SetVolumeId(v string) *SnapshotTierStatus {
 
 // The Spot Instance replacement strategy to use when Amazon EC2 emits a signal
 // that your Spot Instance is at an elevated risk of being interrupted. For
-// more information, see Capacity rebalancing (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-fleet-configuration-strategies.html#spot-fleet-capacity-rebalance)
+// more information, see Capacity rebalancing (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-fleet-capacity-rebalance.html)
 // in the Amazon EC2 User Guide for Linux Instances.
 type SpotCapacityRebalance struct {
 	_ struct{} `type:"structure"`
@@ -146655,7 +148659,9 @@ type SpotCapacityRebalance struct {
 	// The amount of time (in seconds) that Amazon EC2 waits before terminating
 	// the old Spot Instance after launching a new replacement Spot Instance.
 	//
-	// Valid only when ReplacementStrategy is set to launch-before-terminate.
+	// Required when ReplacementStrategy is set to launch-before-terminate.
+	//
+	// Not valid when ReplacementStrategy is set to launch.
 	//
 	// Valid values: Minimum value of 120 seconds. Maximum value of 7200 seconds.
 	TerminationDelay *int64 `locationName:"terminationDelay" type:"integer"`
@@ -147852,8 +149858,10 @@ func (s *SpotInstanceStatus) SetUpdateTime(v time.Time) *SpotInstanceStatus {
 type SpotMaintenanceStrategies struct {
 	_ struct{} `type:"structure"`
 
-	// The strategy to use when Amazon EC2 emits a signal that your Spot Instance
-	// is at an elevated risk of being interrupted.
+	// The Spot Instance replacement strategy to use when Amazon EC2 emits a signal
+	// that your Spot Instance is at an elevated risk of being interrupted. For
+	// more information, see Capacity rebalancing (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-fleet-capacity-rebalance.html)
+	// in the Amazon EC2 User Guide for Linux Instances.
 	CapacityRebalance *SpotCapacityRebalance `locationName:"capacityRebalance" type:"structure"`
 }
 
@@ -149865,7 +151873,7 @@ type Tag struct {
 
 	// The value of the tag.
 	//
-	// Constraints: Tag values are case-sensitive and accept a maximum of 255 Unicode
+	// Constraints: Tag values are case-sensitive and accept a maximum of 256 Unicode
 	// characters.
 	Value *string `locationName:"value" type:"string"`
 }
@@ -157513,7 +159521,7 @@ type VpnTunnelOptionsSpecification struct {
 
 	// The number of seconds after which a DPD timeout occurs.
 	//
-	// Constraints: A value between 0 and 30.
+	// Constraints: A value greater than or equal to 30.
 	//
 	// Default: 30
 	DPDTimeoutSeconds *int64 `type:"integer"`
@@ -158666,6 +160674,24 @@ const (
 
 	// CapacityReservationInstancePlatformLinuxwithSqlserverEnterprise is a CapacityReservationInstancePlatform enum value
 	CapacityReservationInstancePlatformLinuxwithSqlserverEnterprise = "Linux with SQL Server Enterprise"
+
+	// CapacityReservationInstancePlatformRhelwithSqlserverStandard is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithSqlserverStandard = "RHEL with SQL Server Standard"
+
+	// CapacityReservationInstancePlatformRhelwithSqlserverEnterprise is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithSqlserverEnterprise = "RHEL with SQL Server Enterprise"
+
+	// CapacityReservationInstancePlatformRhelwithSqlserverWeb is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithSqlserverWeb = "RHEL with SQL Server Web"
+
+	// CapacityReservationInstancePlatformRhelwithHa is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithHa = "RHEL with HA"
+
+	// CapacityReservationInstancePlatformRhelwithHaandSqlserverStandard is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithHaandSqlserverStandard = "RHEL with HA and SQL Server Standard"
+
+	// CapacityReservationInstancePlatformRhelwithHaandSqlserverEnterprise is a CapacityReservationInstancePlatform enum value
+	CapacityReservationInstancePlatformRhelwithHaandSqlserverEnterprise = "RHEL with HA and SQL Server Enterprise"
 )
 
 // CapacityReservationInstancePlatform_Values returns all elements of the CapacityReservationInstancePlatform enum
@@ -158682,6 +160708,12 @@ func CapacityReservationInstancePlatform_Values() []string {
 		CapacityReservationInstancePlatformLinuxwithSqlserverStandard,
 		CapacityReservationInstancePlatformLinuxwithSqlserverWeb,
 		CapacityReservationInstancePlatformLinuxwithSqlserverEnterprise,
+		CapacityReservationInstancePlatformRhelwithSqlserverStandard,
+		CapacityReservationInstancePlatformRhelwithSqlserverEnterprise,
+		CapacityReservationInstancePlatformRhelwithSqlserverWeb,
+		CapacityReservationInstancePlatformRhelwithHa,
+		CapacityReservationInstancePlatformRhelwithHaandSqlserverStandard,
+		CapacityReservationInstancePlatformRhelwithHaandSqlserverEnterprise,
 	}
 }
 
@@ -159522,6 +161554,50 @@ func ExportTaskState_Values() []string {
 }
 
 const (
+	// FastLaunchResourceTypeSnapshot is a FastLaunchResourceType enum value
+	FastLaunchResourceTypeSnapshot = "snapshot"
+)
+
+// FastLaunchResourceType_Values returns all elements of the FastLaunchResourceType enum
+func FastLaunchResourceType_Values() []string {
+	return []string{
+		FastLaunchResourceTypeSnapshot,
+	}
+}
+
+const (
+	// FastLaunchStateCodeEnabling is a FastLaunchStateCode enum value
+	FastLaunchStateCodeEnabling = "enabling"
+
+	// FastLaunchStateCodeEnablingFailed is a FastLaunchStateCode enum value
+	FastLaunchStateCodeEnablingFailed = "enabling-failed"
+
+	// FastLaunchStateCodeEnabled is a FastLaunchStateCode enum value
+	FastLaunchStateCodeEnabled = "enabled"
+
+	// FastLaunchStateCodeEnabledFailed is a FastLaunchStateCode enum value
+	FastLaunchStateCodeEnabledFailed = "enabled-failed"
+
+	// FastLaunchStateCodeDisabling is a FastLaunchStateCode enum value
+	FastLaunchStateCodeDisabling = "disabling"
+
+	// FastLaunchStateCodeDisablingFailed is a FastLaunchStateCode enum value
+	FastLaunchStateCodeDisablingFailed = "disabling-failed"
+)
+
+// FastLaunchStateCode_Values returns all elements of the FastLaunchStateCode enum
+func FastLaunchStateCode_Values() []string {
+	return []string{
+		FastLaunchStateCodeEnabling,
+		FastLaunchStateCodeEnablingFailed,
+		FastLaunchStateCodeEnabled,
+		FastLaunchStateCodeEnabledFailed,
+		FastLaunchStateCodeDisabling,
+		FastLaunchStateCodeDisablingFailed,
+	}
+}
+
+const (
 	// FastSnapshotRestoreStateCodeEnabling is a FastSnapshotRestoreStateCode enum value
 	FastSnapshotRestoreStateCodeEnabling = "enabling"
 
@@ -160001,6 +162077,9 @@ const (
 
 	// ImageAttributeNameBootMode is a ImageAttributeName enum value
 	ImageAttributeNameBootMode = "bootMode"
+
+	// ImageAttributeNameLastLaunchedTime is a ImageAttributeName enum value
+	ImageAttributeNameLastLaunchedTime = "lastLaunchedTime"
 )
 
 // ImageAttributeName_Values returns all elements of the ImageAttributeName enum
@@ -160014,6 +162093,7 @@ func ImageAttributeName_Values() []string {
 		ImageAttributeNameBlockDeviceMapping,
 		ImageAttributeNameSriovNetSupport,
 		ImageAttributeNameBootMode,
+		ImageAttributeNameLastLaunchedTime,
 	}
 }
 
@@ -160314,6 +162394,22 @@ func InstanceMetadataProtocolState_Values() []string {
 }
 
 const (
+	// InstanceMetadataTagsStateDisabled is a InstanceMetadataTagsState enum value
+	InstanceMetadataTagsStateDisabled = "disabled"
+
+	// InstanceMetadataTagsStateEnabled is a InstanceMetadataTagsState enum value
+	InstanceMetadataTagsStateEnabled = "enabled"
+)
+
+// InstanceMetadataTagsState_Values returns all elements of the InstanceMetadataTagsState enum
+func InstanceMetadataTagsState_Values() []string {
+	return []string{
+		InstanceMetadataTagsStateDisabled,
+		InstanceMetadataTagsStateEnabled,
+	}
+}
+
+const (
 	// InstanceStateNamePending is a InstanceStateName enum value
 	InstanceStateNamePending = "pending"
 
@@ -160362,449 +162458,23 @@ func InstanceStorageEncryptionSupport_Values() []string {
 }
 
 const (
-	// InstanceTypeT1Micro is a InstanceType enum value
-	InstanceTypeT1Micro = "t1.micro"
+	// InstanceTypeA1Medium is a InstanceType enum value
+	InstanceTypeA1Medium = "a1.medium"
 
-	// InstanceTypeT2Nano is a InstanceType enum value
-	InstanceTypeT2Nano = "t2.nano"
+	// InstanceTypeA1Large is a InstanceType enum value
+	InstanceTypeA1Large = "a1.large"
 
-	// InstanceTypeT2Micro is a InstanceType enum value
-	InstanceTypeT2Micro = "t2.micro"
+	// InstanceTypeA1Xlarge is a InstanceType enum value
+	InstanceTypeA1Xlarge = "a1.xlarge"
 
-	// InstanceTypeT2Small is a InstanceType enum value
-	InstanceTypeT2Small = "t2.small"
+	// InstanceTypeA12xlarge is a InstanceType enum value
+	InstanceTypeA12xlarge = "a1.2xlarge"
 
-	// InstanceTypeT2Medium is a InstanceType enum value
-	InstanceTypeT2Medium = "t2.medium"
+	// InstanceTypeA14xlarge is a InstanceType enum value
+	InstanceTypeA14xlarge = "a1.4xlarge"
 
-	// InstanceTypeT2Large is a InstanceType enum value
-	InstanceTypeT2Large = "t2.large"
-
-	// InstanceTypeT2Xlarge is a InstanceType enum value
-	InstanceTypeT2Xlarge = "t2.xlarge"
-
-	// InstanceTypeT22xlarge is a InstanceType enum value
-	InstanceTypeT22xlarge = "t2.2xlarge"
-
-	// InstanceTypeT3Nano is a InstanceType enum value
-	InstanceTypeT3Nano = "t3.nano"
-
-	// InstanceTypeT3Micro is a InstanceType enum value
-	InstanceTypeT3Micro = "t3.micro"
-
-	// InstanceTypeT3Small is a InstanceType enum value
-	InstanceTypeT3Small = "t3.small"
-
-	// InstanceTypeT3Medium is a InstanceType enum value
-	InstanceTypeT3Medium = "t3.medium"
-
-	// InstanceTypeT3Large is a InstanceType enum value
-	InstanceTypeT3Large = "t3.large"
-
-	// InstanceTypeT3Xlarge is a InstanceType enum value
-	InstanceTypeT3Xlarge = "t3.xlarge"
-
-	// InstanceTypeT32xlarge is a InstanceType enum value
-	InstanceTypeT32xlarge = "t3.2xlarge"
-
-	// InstanceTypeT3aNano is a InstanceType enum value
-	InstanceTypeT3aNano = "t3a.nano"
-
-	// InstanceTypeT3aMicro is a InstanceType enum value
-	InstanceTypeT3aMicro = "t3a.micro"
-
-	// InstanceTypeT3aSmall is a InstanceType enum value
-	InstanceTypeT3aSmall = "t3a.small"
-
-	// InstanceTypeT3aMedium is a InstanceType enum value
-	InstanceTypeT3aMedium = "t3a.medium"
-
-	// InstanceTypeT3aLarge is a InstanceType enum value
-	InstanceTypeT3aLarge = "t3a.large"
-
-	// InstanceTypeT3aXlarge is a InstanceType enum value
-	InstanceTypeT3aXlarge = "t3a.xlarge"
-
-	// InstanceTypeT3a2xlarge is a InstanceType enum value
-	InstanceTypeT3a2xlarge = "t3a.2xlarge"
-
-	// InstanceTypeT4gNano is a InstanceType enum value
-	InstanceTypeT4gNano = "t4g.nano"
-
-	// InstanceTypeT4gMicro is a InstanceType enum value
-	InstanceTypeT4gMicro = "t4g.micro"
-
-	// InstanceTypeT4gSmall is a InstanceType enum value
-	InstanceTypeT4gSmall = "t4g.small"
-
-	// InstanceTypeT4gMedium is a InstanceType enum value
-	InstanceTypeT4gMedium = "t4g.medium"
-
-	// InstanceTypeT4gLarge is a InstanceType enum value
-	InstanceTypeT4gLarge = "t4g.large"
-
-	// InstanceTypeT4gXlarge is a InstanceType enum value
-	InstanceTypeT4gXlarge = "t4g.xlarge"
-
-	// InstanceTypeT4g2xlarge is a InstanceType enum value
-	InstanceTypeT4g2xlarge = "t4g.2xlarge"
-
-	// InstanceTypeM1Small is a InstanceType enum value
-	InstanceTypeM1Small = "m1.small"
-
-	// InstanceTypeM1Medium is a InstanceType enum value
-	InstanceTypeM1Medium = "m1.medium"
-
-	// InstanceTypeM1Large is a InstanceType enum value
-	InstanceTypeM1Large = "m1.large"
-
-	// InstanceTypeM1Xlarge is a InstanceType enum value
-	InstanceTypeM1Xlarge = "m1.xlarge"
-
-	// InstanceTypeM3Medium is a InstanceType enum value
-	InstanceTypeM3Medium = "m3.medium"
-
-	// InstanceTypeM3Large is a InstanceType enum value
-	InstanceTypeM3Large = "m3.large"
-
-	// InstanceTypeM3Xlarge is a InstanceType enum value
-	InstanceTypeM3Xlarge = "m3.xlarge"
-
-	// InstanceTypeM32xlarge is a InstanceType enum value
-	InstanceTypeM32xlarge = "m3.2xlarge"
-
-	// InstanceTypeM4Large is a InstanceType enum value
-	InstanceTypeM4Large = "m4.large"
-
-	// InstanceTypeM4Xlarge is a InstanceType enum value
-	InstanceTypeM4Xlarge = "m4.xlarge"
-
-	// InstanceTypeM42xlarge is a InstanceType enum value
-	InstanceTypeM42xlarge = "m4.2xlarge"
-
-	// InstanceTypeM44xlarge is a InstanceType enum value
-	InstanceTypeM44xlarge = "m4.4xlarge"
-
-	// InstanceTypeM410xlarge is a InstanceType enum value
-	InstanceTypeM410xlarge = "m4.10xlarge"
-
-	// InstanceTypeM416xlarge is a InstanceType enum value
-	InstanceTypeM416xlarge = "m4.16xlarge"
-
-	// InstanceTypeM2Xlarge is a InstanceType enum value
-	InstanceTypeM2Xlarge = "m2.xlarge"
-
-	// InstanceTypeM22xlarge is a InstanceType enum value
-	InstanceTypeM22xlarge = "m2.2xlarge"
-
-	// InstanceTypeM24xlarge is a InstanceType enum value
-	InstanceTypeM24xlarge = "m2.4xlarge"
-
-	// InstanceTypeCr18xlarge is a InstanceType enum value
-	InstanceTypeCr18xlarge = "cr1.8xlarge"
-
-	// InstanceTypeR3Large is a InstanceType enum value
-	InstanceTypeR3Large = "r3.large"
-
-	// InstanceTypeR3Xlarge is a InstanceType enum value
-	InstanceTypeR3Xlarge = "r3.xlarge"
-
-	// InstanceTypeR32xlarge is a InstanceType enum value
-	InstanceTypeR32xlarge = "r3.2xlarge"
-
-	// InstanceTypeR34xlarge is a InstanceType enum value
-	InstanceTypeR34xlarge = "r3.4xlarge"
-
-	// InstanceTypeR38xlarge is a InstanceType enum value
-	InstanceTypeR38xlarge = "r3.8xlarge"
-
-	// InstanceTypeR4Large is a InstanceType enum value
-	InstanceTypeR4Large = "r4.large"
-
-	// InstanceTypeR4Xlarge is a InstanceType enum value
-	InstanceTypeR4Xlarge = "r4.xlarge"
-
-	// InstanceTypeR42xlarge is a InstanceType enum value
-	InstanceTypeR42xlarge = "r4.2xlarge"
-
-	// InstanceTypeR44xlarge is a InstanceType enum value
-	InstanceTypeR44xlarge = "r4.4xlarge"
-
-	// InstanceTypeR48xlarge is a InstanceType enum value
-	InstanceTypeR48xlarge = "r4.8xlarge"
-
-	// InstanceTypeR416xlarge is a InstanceType enum value
-	InstanceTypeR416xlarge = "r4.16xlarge"
-
-	// InstanceTypeR5Large is a InstanceType enum value
-	InstanceTypeR5Large = "r5.large"
-
-	// InstanceTypeR5Xlarge is a InstanceType enum value
-	InstanceTypeR5Xlarge = "r5.xlarge"
-
-	// InstanceTypeR52xlarge is a InstanceType enum value
-	InstanceTypeR52xlarge = "r5.2xlarge"
-
-	// InstanceTypeR54xlarge is a InstanceType enum value
-	InstanceTypeR54xlarge = "r5.4xlarge"
-
-	// InstanceTypeR58xlarge is a InstanceType enum value
-	InstanceTypeR58xlarge = "r5.8xlarge"
-
-	// InstanceTypeR512xlarge is a InstanceType enum value
-	InstanceTypeR512xlarge = "r5.12xlarge"
-
-	// InstanceTypeR516xlarge is a InstanceType enum value
-	InstanceTypeR516xlarge = "r5.16xlarge"
-
-	// InstanceTypeR524xlarge is a InstanceType enum value
-	InstanceTypeR524xlarge = "r5.24xlarge"
-
-	// InstanceTypeR5Metal is a InstanceType enum value
-	InstanceTypeR5Metal = "r5.metal"
-
-	// InstanceTypeR5aLarge is a InstanceType enum value
-	InstanceTypeR5aLarge = "r5a.large"
-
-	// InstanceTypeR5aXlarge is a InstanceType enum value
-	InstanceTypeR5aXlarge = "r5a.xlarge"
-
-	// InstanceTypeR5a2xlarge is a InstanceType enum value
-	InstanceTypeR5a2xlarge = "r5a.2xlarge"
-
-	// InstanceTypeR5a4xlarge is a InstanceType enum value
-	InstanceTypeR5a4xlarge = "r5a.4xlarge"
-
-	// InstanceTypeR5a8xlarge is a InstanceType enum value
-	InstanceTypeR5a8xlarge = "r5a.8xlarge"
-
-	// InstanceTypeR5a12xlarge is a InstanceType enum value
-	InstanceTypeR5a12xlarge = "r5a.12xlarge"
-
-	// InstanceTypeR5a16xlarge is a InstanceType enum value
-	InstanceTypeR5a16xlarge = "r5a.16xlarge"
-
-	// InstanceTypeR5a24xlarge is a InstanceType enum value
-	InstanceTypeR5a24xlarge = "r5a.24xlarge"
-
-	// InstanceTypeR5bLarge is a InstanceType enum value
-	InstanceTypeR5bLarge = "r5b.large"
-
-	// InstanceTypeR5bXlarge is a InstanceType enum value
-	InstanceTypeR5bXlarge = "r5b.xlarge"
-
-	// InstanceTypeR5b2xlarge is a InstanceType enum value
-	InstanceTypeR5b2xlarge = "r5b.2xlarge"
-
-	// InstanceTypeR5b4xlarge is a InstanceType enum value
-	InstanceTypeR5b4xlarge = "r5b.4xlarge"
-
-	// InstanceTypeR5b8xlarge is a InstanceType enum value
-	InstanceTypeR5b8xlarge = "r5b.8xlarge"
-
-	// InstanceTypeR5b12xlarge is a InstanceType enum value
-	InstanceTypeR5b12xlarge = "r5b.12xlarge"
-
-	// InstanceTypeR5b16xlarge is a InstanceType enum value
-	InstanceTypeR5b16xlarge = "r5b.16xlarge"
-
-	// InstanceTypeR5b24xlarge is a InstanceType enum value
-	InstanceTypeR5b24xlarge = "r5b.24xlarge"
-
-	// InstanceTypeR5bMetal is a InstanceType enum value
-	InstanceTypeR5bMetal = "r5b.metal"
-
-	// InstanceTypeR5dLarge is a InstanceType enum value
-	InstanceTypeR5dLarge = "r5d.large"
-
-	// InstanceTypeR5dXlarge is a InstanceType enum value
-	InstanceTypeR5dXlarge = "r5d.xlarge"
-
-	// InstanceTypeR5d2xlarge is a InstanceType enum value
-	InstanceTypeR5d2xlarge = "r5d.2xlarge"
-
-	// InstanceTypeR5d4xlarge is a InstanceType enum value
-	InstanceTypeR5d4xlarge = "r5d.4xlarge"
-
-	// InstanceTypeR5d8xlarge is a InstanceType enum value
-	InstanceTypeR5d8xlarge = "r5d.8xlarge"
-
-	// InstanceTypeR5d12xlarge is a InstanceType enum value
-	InstanceTypeR5d12xlarge = "r5d.12xlarge"
-
-	// InstanceTypeR5d16xlarge is a InstanceType enum value
-	InstanceTypeR5d16xlarge = "r5d.16xlarge"
-
-	// InstanceTypeR5d24xlarge is a InstanceType enum value
-	InstanceTypeR5d24xlarge = "r5d.24xlarge"
-
-	// InstanceTypeR5dMetal is a InstanceType enum value
-	InstanceTypeR5dMetal = "r5d.metal"
-
-	// InstanceTypeR5adLarge is a InstanceType enum value
-	InstanceTypeR5adLarge = "r5ad.large"
-
-	// InstanceTypeR5adXlarge is a InstanceType enum value
-	InstanceTypeR5adXlarge = "r5ad.xlarge"
-
-	// InstanceTypeR5ad2xlarge is a InstanceType enum value
-	InstanceTypeR5ad2xlarge = "r5ad.2xlarge"
-
-	// InstanceTypeR5ad4xlarge is a InstanceType enum value
-	InstanceTypeR5ad4xlarge = "r5ad.4xlarge"
-
-	// InstanceTypeR5ad8xlarge is a InstanceType enum value
-	InstanceTypeR5ad8xlarge = "r5ad.8xlarge"
-
-	// InstanceTypeR5ad12xlarge is a InstanceType enum value
-	InstanceTypeR5ad12xlarge = "r5ad.12xlarge"
-
-	// InstanceTypeR5ad16xlarge is a InstanceType enum value
-	InstanceTypeR5ad16xlarge = "r5ad.16xlarge"
-
-	// InstanceTypeR5ad24xlarge is a InstanceType enum value
-	InstanceTypeR5ad24xlarge = "r5ad.24xlarge"
-
-	// InstanceTypeR6gMetal is a InstanceType enum value
-	InstanceTypeR6gMetal = "r6g.metal"
-
-	// InstanceTypeR6gMedium is a InstanceType enum value
-	InstanceTypeR6gMedium = "r6g.medium"
-
-	// InstanceTypeR6gLarge is a InstanceType enum value
-	InstanceTypeR6gLarge = "r6g.large"
-
-	// InstanceTypeR6gXlarge is a InstanceType enum value
-	InstanceTypeR6gXlarge = "r6g.xlarge"
-
-	// InstanceTypeR6g2xlarge is a InstanceType enum value
-	InstanceTypeR6g2xlarge = "r6g.2xlarge"
-
-	// InstanceTypeR6g4xlarge is a InstanceType enum value
-	InstanceTypeR6g4xlarge = "r6g.4xlarge"
-
-	// InstanceTypeR6g8xlarge is a InstanceType enum value
-	InstanceTypeR6g8xlarge = "r6g.8xlarge"
-
-	// InstanceTypeR6g12xlarge is a InstanceType enum value
-	InstanceTypeR6g12xlarge = "r6g.12xlarge"
-
-	// InstanceTypeR6g16xlarge is a InstanceType enum value
-	InstanceTypeR6g16xlarge = "r6g.16xlarge"
-
-	// InstanceTypeR6gdMetal is a InstanceType enum value
-	InstanceTypeR6gdMetal = "r6gd.metal"
-
-	// InstanceTypeR6gdMedium is a InstanceType enum value
-	InstanceTypeR6gdMedium = "r6gd.medium"
-
-	// InstanceTypeR6gdLarge is a InstanceType enum value
-	InstanceTypeR6gdLarge = "r6gd.large"
-
-	// InstanceTypeR6gdXlarge is a InstanceType enum value
-	InstanceTypeR6gdXlarge = "r6gd.xlarge"
-
-	// InstanceTypeR6gd2xlarge is a InstanceType enum value
-	InstanceTypeR6gd2xlarge = "r6gd.2xlarge"
-
-	// InstanceTypeR6gd4xlarge is a InstanceType enum value
-	InstanceTypeR6gd4xlarge = "r6gd.4xlarge"
-
-	// InstanceTypeR6gd8xlarge is a InstanceType enum value
-	InstanceTypeR6gd8xlarge = "r6gd.8xlarge"
-
-	// InstanceTypeR6gd12xlarge is a InstanceType enum value
-	InstanceTypeR6gd12xlarge = "r6gd.12xlarge"
-
-	// InstanceTypeR6gd16xlarge is a InstanceType enum value
-	InstanceTypeR6gd16xlarge = "r6gd.16xlarge"
-
-	// InstanceTypeX116xlarge is a InstanceType enum value
-	InstanceTypeX116xlarge = "x1.16xlarge"
-
-	// InstanceTypeX132xlarge is a InstanceType enum value
-	InstanceTypeX132xlarge = "x1.32xlarge"
-
-	// InstanceTypeX1eXlarge is a InstanceType enum value
-	InstanceTypeX1eXlarge = "x1e.xlarge"
-
-	// InstanceTypeX1e2xlarge is a InstanceType enum value
-	InstanceTypeX1e2xlarge = "x1e.2xlarge"
-
-	// InstanceTypeX1e4xlarge is a InstanceType enum value
-	InstanceTypeX1e4xlarge = "x1e.4xlarge"
-
-	// InstanceTypeX1e8xlarge is a InstanceType enum value
-	InstanceTypeX1e8xlarge = "x1e.8xlarge"
-
-	// InstanceTypeX1e16xlarge is a InstanceType enum value
-	InstanceTypeX1e16xlarge = "x1e.16xlarge"
-
-	// InstanceTypeX1e32xlarge is a InstanceType enum value
-	InstanceTypeX1e32xlarge = "x1e.32xlarge"
-
-	// InstanceTypeI2Xlarge is a InstanceType enum value
-	InstanceTypeI2Xlarge = "i2.xlarge"
-
-	// InstanceTypeI22xlarge is a InstanceType enum value
-	InstanceTypeI22xlarge = "i2.2xlarge"
-
-	// InstanceTypeI24xlarge is a InstanceType enum value
-	InstanceTypeI24xlarge = "i2.4xlarge"
-
-	// InstanceTypeI28xlarge is a InstanceType enum value
-	InstanceTypeI28xlarge = "i2.8xlarge"
-
-	// InstanceTypeI3Large is a InstanceType enum value
-	InstanceTypeI3Large = "i3.large"
-
-	// InstanceTypeI3Xlarge is a InstanceType enum value
-	InstanceTypeI3Xlarge = "i3.xlarge"
-
-	// InstanceTypeI32xlarge is a InstanceType enum value
-	InstanceTypeI32xlarge = "i3.2xlarge"
-
-	// InstanceTypeI34xlarge is a InstanceType enum value
-	InstanceTypeI34xlarge = "i3.4xlarge"
-
-	// InstanceTypeI38xlarge is a InstanceType enum value
-	InstanceTypeI38xlarge = "i3.8xlarge"
-
-	// InstanceTypeI316xlarge is a InstanceType enum value
-	InstanceTypeI316xlarge = "i3.16xlarge"
-
-	// InstanceTypeI3Metal is a InstanceType enum value
-	InstanceTypeI3Metal = "i3.metal"
-
-	// InstanceTypeI3enLarge is a InstanceType enum value
-	InstanceTypeI3enLarge = "i3en.large"
-
-	// InstanceTypeI3enXlarge is a InstanceType enum value
-	InstanceTypeI3enXlarge = "i3en.xlarge"
-
-	// InstanceTypeI3en2xlarge is a InstanceType enum value
-	InstanceTypeI3en2xlarge = "i3en.2xlarge"
-
-	// InstanceTypeI3en3xlarge is a InstanceType enum value
-	InstanceTypeI3en3xlarge = "i3en.3xlarge"
-
-	// InstanceTypeI3en6xlarge is a InstanceType enum value
-	InstanceTypeI3en6xlarge = "i3en.6xlarge"
-
-	// InstanceTypeI3en12xlarge is a InstanceType enum value
-	InstanceTypeI3en12xlarge = "i3en.12xlarge"
-
-	// InstanceTypeI3en24xlarge is a InstanceType enum value
-	InstanceTypeI3en24xlarge = "i3en.24xlarge"
-
-	// InstanceTypeI3enMetal is a InstanceType enum value
-	InstanceTypeI3enMetal = "i3en.metal"
-
-	// InstanceTypeHi14xlarge is a InstanceType enum value
-	InstanceTypeHi14xlarge = "hi1.4xlarge"
-
-	// InstanceTypeHs18xlarge is a InstanceType enum value
-	InstanceTypeHs18xlarge = "hs1.8xlarge"
+	// InstanceTypeA1Metal is a InstanceType enum value
+	InstanceTypeA1Metal = "a1.metal"
 
 	// InstanceTypeC1Medium is a InstanceType enum value
 	InstanceTypeC1Medium = "c1.medium"
@@ -160965,9 +162635,6 @@ const (
 	// InstanceTypeC5nMetal is a InstanceType enum value
 	InstanceTypeC5nMetal = "c5n.metal"
 
-	// InstanceTypeC6gMetal is a InstanceType enum value
-	InstanceTypeC6gMetal = "c6g.metal"
-
 	// InstanceTypeC6gMedium is a InstanceType enum value
 	InstanceTypeC6gMedium = "c6g.medium"
 
@@ -160992,8 +162659,8 @@ const (
 	// InstanceTypeC6g16xlarge is a InstanceType enum value
 	InstanceTypeC6g16xlarge = "c6g.16xlarge"
 
-	// InstanceTypeC6gdMetal is a InstanceType enum value
-	InstanceTypeC6gdMetal = "c6gd.metal"
+	// InstanceTypeC6gMetal is a InstanceType enum value
+	InstanceTypeC6gMetal = "c6g.metal"
 
 	// InstanceTypeC6gdMedium is a InstanceType enum value
 	InstanceTypeC6gdMedium = "c6gd.medium"
@@ -161018,6 +162685,9 @@ const (
 
 	// InstanceTypeC6gd16xlarge is a InstanceType enum value
 	InstanceTypeC6gd16xlarge = "c6gd.16xlarge"
+
+	// InstanceTypeC6gdMetal is a InstanceType enum value
+	InstanceTypeC6gdMetal = "c6gd.metal"
 
 	// InstanceTypeC6gnMedium is a InstanceType enum value
 	InstanceTypeC6gnMedium = "c6gn.medium"
@@ -161070,92 +162740,20 @@ const (
 	// InstanceTypeC6i32xlarge is a InstanceType enum value
 	InstanceTypeC6i32xlarge = "c6i.32xlarge"
 
+	// InstanceTypeC6iMetal is a InstanceType enum value
+	InstanceTypeC6iMetal = "c6i.metal"
+
 	// InstanceTypeCc14xlarge is a InstanceType enum value
 	InstanceTypeCc14xlarge = "cc1.4xlarge"
 
 	// InstanceTypeCc28xlarge is a InstanceType enum value
 	InstanceTypeCc28xlarge = "cc2.8xlarge"
 
-	// InstanceTypeG22xlarge is a InstanceType enum value
-	InstanceTypeG22xlarge = "g2.2xlarge"
-
-	// InstanceTypeG28xlarge is a InstanceType enum value
-	InstanceTypeG28xlarge = "g2.8xlarge"
-
-	// InstanceTypeG34xlarge is a InstanceType enum value
-	InstanceTypeG34xlarge = "g3.4xlarge"
-
-	// InstanceTypeG38xlarge is a InstanceType enum value
-	InstanceTypeG38xlarge = "g3.8xlarge"
-
-	// InstanceTypeG316xlarge is a InstanceType enum value
-	InstanceTypeG316xlarge = "g3.16xlarge"
-
-	// InstanceTypeG3sXlarge is a InstanceType enum value
-	InstanceTypeG3sXlarge = "g3s.xlarge"
-
-	// InstanceTypeG4adXlarge is a InstanceType enum value
-	InstanceTypeG4adXlarge = "g4ad.xlarge"
-
-	// InstanceTypeG4ad2xlarge is a InstanceType enum value
-	InstanceTypeG4ad2xlarge = "g4ad.2xlarge"
-
-	// InstanceTypeG4ad4xlarge is a InstanceType enum value
-	InstanceTypeG4ad4xlarge = "g4ad.4xlarge"
-
-	// InstanceTypeG4ad8xlarge is a InstanceType enum value
-	InstanceTypeG4ad8xlarge = "g4ad.8xlarge"
-
-	// InstanceTypeG4ad16xlarge is a InstanceType enum value
-	InstanceTypeG4ad16xlarge = "g4ad.16xlarge"
-
-	// InstanceTypeG4dnXlarge is a InstanceType enum value
-	InstanceTypeG4dnXlarge = "g4dn.xlarge"
-
-	// InstanceTypeG4dn2xlarge is a InstanceType enum value
-	InstanceTypeG4dn2xlarge = "g4dn.2xlarge"
-
-	// InstanceTypeG4dn4xlarge is a InstanceType enum value
-	InstanceTypeG4dn4xlarge = "g4dn.4xlarge"
-
-	// InstanceTypeG4dn8xlarge is a InstanceType enum value
-	InstanceTypeG4dn8xlarge = "g4dn.8xlarge"
-
-	// InstanceTypeG4dn12xlarge is a InstanceType enum value
-	InstanceTypeG4dn12xlarge = "g4dn.12xlarge"
-
-	// InstanceTypeG4dn16xlarge is a InstanceType enum value
-	InstanceTypeG4dn16xlarge = "g4dn.16xlarge"
-
-	// InstanceTypeG4dnMetal is a InstanceType enum value
-	InstanceTypeG4dnMetal = "g4dn.metal"
-
 	// InstanceTypeCg14xlarge is a InstanceType enum value
 	InstanceTypeCg14xlarge = "cg1.4xlarge"
 
-	// InstanceTypeP2Xlarge is a InstanceType enum value
-	InstanceTypeP2Xlarge = "p2.xlarge"
-
-	// InstanceTypeP28xlarge is a InstanceType enum value
-	InstanceTypeP28xlarge = "p2.8xlarge"
-
-	// InstanceTypeP216xlarge is a InstanceType enum value
-	InstanceTypeP216xlarge = "p2.16xlarge"
-
-	// InstanceTypeP32xlarge is a InstanceType enum value
-	InstanceTypeP32xlarge = "p3.2xlarge"
-
-	// InstanceTypeP38xlarge is a InstanceType enum value
-	InstanceTypeP38xlarge = "p3.8xlarge"
-
-	// InstanceTypeP316xlarge is a InstanceType enum value
-	InstanceTypeP316xlarge = "p3.16xlarge"
-
-	// InstanceTypeP3dn24xlarge is a InstanceType enum value
-	InstanceTypeP3dn24xlarge = "p3dn.24xlarge"
-
-	// InstanceTypeP4d24xlarge is a InstanceType enum value
-	InstanceTypeP4d24xlarge = "p4d.24xlarge"
+	// InstanceTypeCr18xlarge is a InstanceType enum value
+	InstanceTypeCr18xlarge = "cr1.8xlarge"
 
 	// InstanceTypeD2Xlarge is a InstanceType enum value
 	InstanceTypeD2Xlarge = "d2.xlarge"
@@ -161211,6 +162809,279 @@ const (
 	// InstanceTypeF116xlarge is a InstanceType enum value
 	InstanceTypeF116xlarge = "f1.16xlarge"
 
+	// InstanceTypeG22xlarge is a InstanceType enum value
+	InstanceTypeG22xlarge = "g2.2xlarge"
+
+	// InstanceTypeG28xlarge is a InstanceType enum value
+	InstanceTypeG28xlarge = "g2.8xlarge"
+
+	// InstanceTypeG34xlarge is a InstanceType enum value
+	InstanceTypeG34xlarge = "g3.4xlarge"
+
+	// InstanceTypeG38xlarge is a InstanceType enum value
+	InstanceTypeG38xlarge = "g3.8xlarge"
+
+	// InstanceTypeG316xlarge is a InstanceType enum value
+	InstanceTypeG316xlarge = "g3.16xlarge"
+
+	// InstanceTypeG3sXlarge is a InstanceType enum value
+	InstanceTypeG3sXlarge = "g3s.xlarge"
+
+	// InstanceTypeG4adXlarge is a InstanceType enum value
+	InstanceTypeG4adXlarge = "g4ad.xlarge"
+
+	// InstanceTypeG4ad2xlarge is a InstanceType enum value
+	InstanceTypeG4ad2xlarge = "g4ad.2xlarge"
+
+	// InstanceTypeG4ad4xlarge is a InstanceType enum value
+	InstanceTypeG4ad4xlarge = "g4ad.4xlarge"
+
+	// InstanceTypeG4ad8xlarge is a InstanceType enum value
+	InstanceTypeG4ad8xlarge = "g4ad.8xlarge"
+
+	// InstanceTypeG4ad16xlarge is a InstanceType enum value
+	InstanceTypeG4ad16xlarge = "g4ad.16xlarge"
+
+	// InstanceTypeG4dnXlarge is a InstanceType enum value
+	InstanceTypeG4dnXlarge = "g4dn.xlarge"
+
+	// InstanceTypeG4dn2xlarge is a InstanceType enum value
+	InstanceTypeG4dn2xlarge = "g4dn.2xlarge"
+
+	// InstanceTypeG4dn4xlarge is a InstanceType enum value
+	InstanceTypeG4dn4xlarge = "g4dn.4xlarge"
+
+	// InstanceTypeG4dn8xlarge is a InstanceType enum value
+	InstanceTypeG4dn8xlarge = "g4dn.8xlarge"
+
+	// InstanceTypeG4dn12xlarge is a InstanceType enum value
+	InstanceTypeG4dn12xlarge = "g4dn.12xlarge"
+
+	// InstanceTypeG4dn16xlarge is a InstanceType enum value
+	InstanceTypeG4dn16xlarge = "g4dn.16xlarge"
+
+	// InstanceTypeG4dnMetal is a InstanceType enum value
+	InstanceTypeG4dnMetal = "g4dn.metal"
+
+	// InstanceTypeG5Xlarge is a InstanceType enum value
+	InstanceTypeG5Xlarge = "g5.xlarge"
+
+	// InstanceTypeG52xlarge is a InstanceType enum value
+	InstanceTypeG52xlarge = "g5.2xlarge"
+
+	// InstanceTypeG54xlarge is a InstanceType enum value
+	InstanceTypeG54xlarge = "g5.4xlarge"
+
+	// InstanceTypeG58xlarge is a InstanceType enum value
+	InstanceTypeG58xlarge = "g5.8xlarge"
+
+	// InstanceTypeG512xlarge is a InstanceType enum value
+	InstanceTypeG512xlarge = "g5.12xlarge"
+
+	// InstanceTypeG516xlarge is a InstanceType enum value
+	InstanceTypeG516xlarge = "g5.16xlarge"
+
+	// InstanceTypeG524xlarge is a InstanceType enum value
+	InstanceTypeG524xlarge = "g5.24xlarge"
+
+	// InstanceTypeG548xlarge is a InstanceType enum value
+	InstanceTypeG548xlarge = "g5.48xlarge"
+
+	// InstanceTypeG5gXlarge is a InstanceType enum value
+	InstanceTypeG5gXlarge = "g5g.xlarge"
+
+	// InstanceTypeG5g2xlarge is a InstanceType enum value
+	InstanceTypeG5g2xlarge = "g5g.2xlarge"
+
+	// InstanceTypeG5g4xlarge is a InstanceType enum value
+	InstanceTypeG5g4xlarge = "g5g.4xlarge"
+
+	// InstanceTypeG5g8xlarge is a InstanceType enum value
+	InstanceTypeG5g8xlarge = "g5g.8xlarge"
+
+	// InstanceTypeG5g16xlarge is a InstanceType enum value
+	InstanceTypeG5g16xlarge = "g5g.16xlarge"
+
+	// InstanceTypeG5gMetal is a InstanceType enum value
+	InstanceTypeG5gMetal = "g5g.metal"
+
+	// InstanceTypeHi14xlarge is a InstanceType enum value
+	InstanceTypeHi14xlarge = "hi1.4xlarge"
+
+	// InstanceTypeHpc6a48xlarge is a InstanceType enum value
+	InstanceTypeHpc6a48xlarge = "hpc6a.48xlarge"
+
+	// InstanceTypeHs18xlarge is a InstanceType enum value
+	InstanceTypeHs18xlarge = "hs1.8xlarge"
+
+	// InstanceTypeH12xlarge is a InstanceType enum value
+	InstanceTypeH12xlarge = "h1.2xlarge"
+
+	// InstanceTypeH14xlarge is a InstanceType enum value
+	InstanceTypeH14xlarge = "h1.4xlarge"
+
+	// InstanceTypeH18xlarge is a InstanceType enum value
+	InstanceTypeH18xlarge = "h1.8xlarge"
+
+	// InstanceTypeH116xlarge is a InstanceType enum value
+	InstanceTypeH116xlarge = "h1.16xlarge"
+
+	// InstanceTypeI2Xlarge is a InstanceType enum value
+	InstanceTypeI2Xlarge = "i2.xlarge"
+
+	// InstanceTypeI22xlarge is a InstanceType enum value
+	InstanceTypeI22xlarge = "i2.2xlarge"
+
+	// InstanceTypeI24xlarge is a InstanceType enum value
+	InstanceTypeI24xlarge = "i2.4xlarge"
+
+	// InstanceTypeI28xlarge is a InstanceType enum value
+	InstanceTypeI28xlarge = "i2.8xlarge"
+
+	// InstanceTypeI3Large is a InstanceType enum value
+	InstanceTypeI3Large = "i3.large"
+
+	// InstanceTypeI3Xlarge is a InstanceType enum value
+	InstanceTypeI3Xlarge = "i3.xlarge"
+
+	// InstanceTypeI32xlarge is a InstanceType enum value
+	InstanceTypeI32xlarge = "i3.2xlarge"
+
+	// InstanceTypeI34xlarge is a InstanceType enum value
+	InstanceTypeI34xlarge = "i3.4xlarge"
+
+	// InstanceTypeI38xlarge is a InstanceType enum value
+	InstanceTypeI38xlarge = "i3.8xlarge"
+
+	// InstanceTypeI316xlarge is a InstanceType enum value
+	InstanceTypeI316xlarge = "i3.16xlarge"
+
+	// InstanceTypeI3Metal is a InstanceType enum value
+	InstanceTypeI3Metal = "i3.metal"
+
+	// InstanceTypeI3enLarge is a InstanceType enum value
+	InstanceTypeI3enLarge = "i3en.large"
+
+	// InstanceTypeI3enXlarge is a InstanceType enum value
+	InstanceTypeI3enXlarge = "i3en.xlarge"
+
+	// InstanceTypeI3en2xlarge is a InstanceType enum value
+	InstanceTypeI3en2xlarge = "i3en.2xlarge"
+
+	// InstanceTypeI3en3xlarge is a InstanceType enum value
+	InstanceTypeI3en3xlarge = "i3en.3xlarge"
+
+	// InstanceTypeI3en6xlarge is a InstanceType enum value
+	InstanceTypeI3en6xlarge = "i3en.6xlarge"
+
+	// InstanceTypeI3en12xlarge is a InstanceType enum value
+	InstanceTypeI3en12xlarge = "i3en.12xlarge"
+
+	// InstanceTypeI3en24xlarge is a InstanceType enum value
+	InstanceTypeI3en24xlarge = "i3en.24xlarge"
+
+	// InstanceTypeI3enMetal is a InstanceType enum value
+	InstanceTypeI3enMetal = "i3en.metal"
+
+	// InstanceTypeIm4gnLarge is a InstanceType enum value
+	InstanceTypeIm4gnLarge = "im4gn.large"
+
+	// InstanceTypeIm4gnXlarge is a InstanceType enum value
+	InstanceTypeIm4gnXlarge = "im4gn.xlarge"
+
+	// InstanceTypeIm4gn2xlarge is a InstanceType enum value
+	InstanceTypeIm4gn2xlarge = "im4gn.2xlarge"
+
+	// InstanceTypeIm4gn4xlarge is a InstanceType enum value
+	InstanceTypeIm4gn4xlarge = "im4gn.4xlarge"
+
+	// InstanceTypeIm4gn8xlarge is a InstanceType enum value
+	InstanceTypeIm4gn8xlarge = "im4gn.8xlarge"
+
+	// InstanceTypeIm4gn16xlarge is a InstanceType enum value
+	InstanceTypeIm4gn16xlarge = "im4gn.16xlarge"
+
+	// InstanceTypeInf1Xlarge is a InstanceType enum value
+	InstanceTypeInf1Xlarge = "inf1.xlarge"
+
+	// InstanceTypeInf12xlarge is a InstanceType enum value
+	InstanceTypeInf12xlarge = "inf1.2xlarge"
+
+	// InstanceTypeInf16xlarge is a InstanceType enum value
+	InstanceTypeInf16xlarge = "inf1.6xlarge"
+
+	// InstanceTypeInf124xlarge is a InstanceType enum value
+	InstanceTypeInf124xlarge = "inf1.24xlarge"
+
+	// InstanceTypeIs4genMedium is a InstanceType enum value
+	InstanceTypeIs4genMedium = "is4gen.medium"
+
+	// InstanceTypeIs4genLarge is a InstanceType enum value
+	InstanceTypeIs4genLarge = "is4gen.large"
+
+	// InstanceTypeIs4genXlarge is a InstanceType enum value
+	InstanceTypeIs4genXlarge = "is4gen.xlarge"
+
+	// InstanceTypeIs4gen2xlarge is a InstanceType enum value
+	InstanceTypeIs4gen2xlarge = "is4gen.2xlarge"
+
+	// InstanceTypeIs4gen4xlarge is a InstanceType enum value
+	InstanceTypeIs4gen4xlarge = "is4gen.4xlarge"
+
+	// InstanceTypeIs4gen8xlarge is a InstanceType enum value
+	InstanceTypeIs4gen8xlarge = "is4gen.8xlarge"
+
+	// InstanceTypeM1Small is a InstanceType enum value
+	InstanceTypeM1Small = "m1.small"
+
+	// InstanceTypeM1Medium is a InstanceType enum value
+	InstanceTypeM1Medium = "m1.medium"
+
+	// InstanceTypeM1Large is a InstanceType enum value
+	InstanceTypeM1Large = "m1.large"
+
+	// InstanceTypeM1Xlarge is a InstanceType enum value
+	InstanceTypeM1Xlarge = "m1.xlarge"
+
+	// InstanceTypeM2Xlarge is a InstanceType enum value
+	InstanceTypeM2Xlarge = "m2.xlarge"
+
+	// InstanceTypeM22xlarge is a InstanceType enum value
+	InstanceTypeM22xlarge = "m2.2xlarge"
+
+	// InstanceTypeM24xlarge is a InstanceType enum value
+	InstanceTypeM24xlarge = "m2.4xlarge"
+
+	// InstanceTypeM3Medium is a InstanceType enum value
+	InstanceTypeM3Medium = "m3.medium"
+
+	// InstanceTypeM3Large is a InstanceType enum value
+	InstanceTypeM3Large = "m3.large"
+
+	// InstanceTypeM3Xlarge is a InstanceType enum value
+	InstanceTypeM3Xlarge = "m3.xlarge"
+
+	// InstanceTypeM32xlarge is a InstanceType enum value
+	InstanceTypeM32xlarge = "m3.2xlarge"
+
+	// InstanceTypeM4Large is a InstanceType enum value
+	InstanceTypeM4Large = "m4.large"
+
+	// InstanceTypeM4Xlarge is a InstanceType enum value
+	InstanceTypeM4Xlarge = "m4.xlarge"
+
+	// InstanceTypeM42xlarge is a InstanceType enum value
+	InstanceTypeM42xlarge = "m4.2xlarge"
+
+	// InstanceTypeM44xlarge is a InstanceType enum value
+	InstanceTypeM44xlarge = "m4.4xlarge"
+
+	// InstanceTypeM410xlarge is a InstanceType enum value
+	InstanceTypeM410xlarge = "m4.10xlarge"
+
+	// InstanceTypeM416xlarge is a InstanceType enum value
+	InstanceTypeM416xlarge = "m4.16xlarge"
+
 	// InstanceTypeM5Large is a InstanceType enum value
 	InstanceTypeM5Large = "m5.large"
 
@@ -161262,6 +163133,30 @@ const (
 	// InstanceTypeM5a24xlarge is a InstanceType enum value
 	InstanceTypeM5a24xlarge = "m5a.24xlarge"
 
+	// InstanceTypeM5adLarge is a InstanceType enum value
+	InstanceTypeM5adLarge = "m5ad.large"
+
+	// InstanceTypeM5adXlarge is a InstanceType enum value
+	InstanceTypeM5adXlarge = "m5ad.xlarge"
+
+	// InstanceTypeM5ad2xlarge is a InstanceType enum value
+	InstanceTypeM5ad2xlarge = "m5ad.2xlarge"
+
+	// InstanceTypeM5ad4xlarge is a InstanceType enum value
+	InstanceTypeM5ad4xlarge = "m5ad.4xlarge"
+
+	// InstanceTypeM5ad8xlarge is a InstanceType enum value
+	InstanceTypeM5ad8xlarge = "m5ad.8xlarge"
+
+	// InstanceTypeM5ad12xlarge is a InstanceType enum value
+	InstanceTypeM5ad12xlarge = "m5ad.12xlarge"
+
+	// InstanceTypeM5ad16xlarge is a InstanceType enum value
+	InstanceTypeM5ad16xlarge = "m5ad.16xlarge"
+
+	// InstanceTypeM5ad24xlarge is a InstanceType enum value
+	InstanceTypeM5ad24xlarge = "m5ad.24xlarge"
+
 	// InstanceTypeM5dLarge is a InstanceType enum value
 	InstanceTypeM5dLarge = "m5d.large"
 
@@ -161288,129 +163183,6 @@ const (
 
 	// InstanceTypeM5dMetal is a InstanceType enum value
 	InstanceTypeM5dMetal = "m5d.metal"
-
-	// InstanceTypeM5adLarge is a InstanceType enum value
-	InstanceTypeM5adLarge = "m5ad.large"
-
-	// InstanceTypeM5adXlarge is a InstanceType enum value
-	InstanceTypeM5adXlarge = "m5ad.xlarge"
-
-	// InstanceTypeM5ad2xlarge is a InstanceType enum value
-	InstanceTypeM5ad2xlarge = "m5ad.2xlarge"
-
-	// InstanceTypeM5ad4xlarge is a InstanceType enum value
-	InstanceTypeM5ad4xlarge = "m5ad.4xlarge"
-
-	// InstanceTypeM5ad8xlarge is a InstanceType enum value
-	InstanceTypeM5ad8xlarge = "m5ad.8xlarge"
-
-	// InstanceTypeM5ad12xlarge is a InstanceType enum value
-	InstanceTypeM5ad12xlarge = "m5ad.12xlarge"
-
-	// InstanceTypeM5ad16xlarge is a InstanceType enum value
-	InstanceTypeM5ad16xlarge = "m5ad.16xlarge"
-
-	// InstanceTypeM5ad24xlarge is a InstanceType enum value
-	InstanceTypeM5ad24xlarge = "m5ad.24xlarge"
-
-	// InstanceTypeM5znLarge is a InstanceType enum value
-	InstanceTypeM5znLarge = "m5zn.large"
-
-	// InstanceTypeM5znXlarge is a InstanceType enum value
-	InstanceTypeM5znXlarge = "m5zn.xlarge"
-
-	// InstanceTypeM5zn2xlarge is a InstanceType enum value
-	InstanceTypeM5zn2xlarge = "m5zn.2xlarge"
-
-	// InstanceTypeM5zn3xlarge is a InstanceType enum value
-	InstanceTypeM5zn3xlarge = "m5zn.3xlarge"
-
-	// InstanceTypeM5zn6xlarge is a InstanceType enum value
-	InstanceTypeM5zn6xlarge = "m5zn.6xlarge"
-
-	// InstanceTypeM5zn12xlarge is a InstanceType enum value
-	InstanceTypeM5zn12xlarge = "m5zn.12xlarge"
-
-	// InstanceTypeM5znMetal is a InstanceType enum value
-	InstanceTypeM5znMetal = "m5zn.metal"
-
-	// InstanceTypeH12xlarge is a InstanceType enum value
-	InstanceTypeH12xlarge = "h1.2xlarge"
-
-	// InstanceTypeH14xlarge is a InstanceType enum value
-	InstanceTypeH14xlarge = "h1.4xlarge"
-
-	// InstanceTypeH18xlarge is a InstanceType enum value
-	InstanceTypeH18xlarge = "h1.8xlarge"
-
-	// InstanceTypeH116xlarge is a InstanceType enum value
-	InstanceTypeH116xlarge = "h1.16xlarge"
-
-	// InstanceTypeZ1dLarge is a InstanceType enum value
-	InstanceTypeZ1dLarge = "z1d.large"
-
-	// InstanceTypeZ1dXlarge is a InstanceType enum value
-	InstanceTypeZ1dXlarge = "z1d.xlarge"
-
-	// InstanceTypeZ1d2xlarge is a InstanceType enum value
-	InstanceTypeZ1d2xlarge = "z1d.2xlarge"
-
-	// InstanceTypeZ1d3xlarge is a InstanceType enum value
-	InstanceTypeZ1d3xlarge = "z1d.3xlarge"
-
-	// InstanceTypeZ1d6xlarge is a InstanceType enum value
-	InstanceTypeZ1d6xlarge = "z1d.6xlarge"
-
-	// InstanceTypeZ1d12xlarge is a InstanceType enum value
-	InstanceTypeZ1d12xlarge = "z1d.12xlarge"
-
-	// InstanceTypeZ1dMetal is a InstanceType enum value
-	InstanceTypeZ1dMetal = "z1d.metal"
-
-	// InstanceTypeU6tb156xlarge is a InstanceType enum value
-	InstanceTypeU6tb156xlarge = "u-6tb1.56xlarge"
-
-	// InstanceTypeU6tb1112xlarge is a InstanceType enum value
-	InstanceTypeU6tb1112xlarge = "u-6tb1.112xlarge"
-
-	// InstanceTypeU9tb1112xlarge is a InstanceType enum value
-	InstanceTypeU9tb1112xlarge = "u-9tb1.112xlarge"
-
-	// InstanceTypeU12tb1112xlarge is a InstanceType enum value
-	InstanceTypeU12tb1112xlarge = "u-12tb1.112xlarge"
-
-	// InstanceTypeU6tb1Metal is a InstanceType enum value
-	InstanceTypeU6tb1Metal = "u-6tb1.metal"
-
-	// InstanceTypeU9tb1Metal is a InstanceType enum value
-	InstanceTypeU9tb1Metal = "u-9tb1.metal"
-
-	// InstanceTypeU12tb1Metal is a InstanceType enum value
-	InstanceTypeU12tb1Metal = "u-12tb1.metal"
-
-	// InstanceTypeU18tb1Metal is a InstanceType enum value
-	InstanceTypeU18tb1Metal = "u-18tb1.metal"
-
-	// InstanceTypeU24tb1Metal is a InstanceType enum value
-	InstanceTypeU24tb1Metal = "u-24tb1.metal"
-
-	// InstanceTypeA1Medium is a InstanceType enum value
-	InstanceTypeA1Medium = "a1.medium"
-
-	// InstanceTypeA1Large is a InstanceType enum value
-	InstanceTypeA1Large = "a1.large"
-
-	// InstanceTypeA1Xlarge is a InstanceType enum value
-	InstanceTypeA1Xlarge = "a1.xlarge"
-
-	// InstanceTypeA12xlarge is a InstanceType enum value
-	InstanceTypeA12xlarge = "a1.2xlarge"
-
-	// InstanceTypeA14xlarge is a InstanceType enum value
-	InstanceTypeA14xlarge = "a1.4xlarge"
-
-	// InstanceTypeA1Metal is a InstanceType enum value
-	InstanceTypeA1Metal = "a1.metal"
 
 	// InstanceTypeM5dnLarge is a InstanceType enum value
 	InstanceTypeM5dnLarge = "m5dn.large"
@@ -161466,71 +163238,56 @@ const (
 	// InstanceTypeM5nMetal is a InstanceType enum value
 	InstanceTypeM5nMetal = "m5n.metal"
 
-	// InstanceTypeR5dnLarge is a InstanceType enum value
-	InstanceTypeR5dnLarge = "r5dn.large"
+	// InstanceTypeM5znLarge is a InstanceType enum value
+	InstanceTypeM5znLarge = "m5zn.large"
 
-	// InstanceTypeR5dnXlarge is a InstanceType enum value
-	InstanceTypeR5dnXlarge = "r5dn.xlarge"
+	// InstanceTypeM5znXlarge is a InstanceType enum value
+	InstanceTypeM5znXlarge = "m5zn.xlarge"
 
-	// InstanceTypeR5dn2xlarge is a InstanceType enum value
-	InstanceTypeR5dn2xlarge = "r5dn.2xlarge"
+	// InstanceTypeM5zn2xlarge is a InstanceType enum value
+	InstanceTypeM5zn2xlarge = "m5zn.2xlarge"
 
-	// InstanceTypeR5dn4xlarge is a InstanceType enum value
-	InstanceTypeR5dn4xlarge = "r5dn.4xlarge"
+	// InstanceTypeM5zn3xlarge is a InstanceType enum value
+	InstanceTypeM5zn3xlarge = "m5zn.3xlarge"
 
-	// InstanceTypeR5dn8xlarge is a InstanceType enum value
-	InstanceTypeR5dn8xlarge = "r5dn.8xlarge"
+	// InstanceTypeM5zn6xlarge is a InstanceType enum value
+	InstanceTypeM5zn6xlarge = "m5zn.6xlarge"
 
-	// InstanceTypeR5dn12xlarge is a InstanceType enum value
-	InstanceTypeR5dn12xlarge = "r5dn.12xlarge"
+	// InstanceTypeM5zn12xlarge is a InstanceType enum value
+	InstanceTypeM5zn12xlarge = "m5zn.12xlarge"
 
-	// InstanceTypeR5dn16xlarge is a InstanceType enum value
-	InstanceTypeR5dn16xlarge = "r5dn.16xlarge"
+	// InstanceTypeM5znMetal is a InstanceType enum value
+	InstanceTypeM5znMetal = "m5zn.metal"
 
-	// InstanceTypeR5dn24xlarge is a InstanceType enum value
-	InstanceTypeR5dn24xlarge = "r5dn.24xlarge"
+	// InstanceTypeM6aLarge is a InstanceType enum value
+	InstanceTypeM6aLarge = "m6a.large"
 
-	// InstanceTypeR5dnMetal is a InstanceType enum value
-	InstanceTypeR5dnMetal = "r5dn.metal"
+	// InstanceTypeM6aXlarge is a InstanceType enum value
+	InstanceTypeM6aXlarge = "m6a.xlarge"
 
-	// InstanceTypeR5nLarge is a InstanceType enum value
-	InstanceTypeR5nLarge = "r5n.large"
+	// InstanceTypeM6a2xlarge is a InstanceType enum value
+	InstanceTypeM6a2xlarge = "m6a.2xlarge"
 
-	// InstanceTypeR5nXlarge is a InstanceType enum value
-	InstanceTypeR5nXlarge = "r5n.xlarge"
+	// InstanceTypeM6a4xlarge is a InstanceType enum value
+	InstanceTypeM6a4xlarge = "m6a.4xlarge"
 
-	// InstanceTypeR5n2xlarge is a InstanceType enum value
-	InstanceTypeR5n2xlarge = "r5n.2xlarge"
+	// InstanceTypeM6a8xlarge is a InstanceType enum value
+	InstanceTypeM6a8xlarge = "m6a.8xlarge"
 
-	// InstanceTypeR5n4xlarge is a InstanceType enum value
-	InstanceTypeR5n4xlarge = "r5n.4xlarge"
+	// InstanceTypeM6a12xlarge is a InstanceType enum value
+	InstanceTypeM6a12xlarge = "m6a.12xlarge"
 
-	// InstanceTypeR5n8xlarge is a InstanceType enum value
-	InstanceTypeR5n8xlarge = "r5n.8xlarge"
+	// InstanceTypeM6a16xlarge is a InstanceType enum value
+	InstanceTypeM6a16xlarge = "m6a.16xlarge"
 
-	// InstanceTypeR5n12xlarge is a InstanceType enum value
-	InstanceTypeR5n12xlarge = "r5n.12xlarge"
+	// InstanceTypeM6a24xlarge is a InstanceType enum value
+	InstanceTypeM6a24xlarge = "m6a.24xlarge"
 
-	// InstanceTypeR5n16xlarge is a InstanceType enum value
-	InstanceTypeR5n16xlarge = "r5n.16xlarge"
+	// InstanceTypeM6a32xlarge is a InstanceType enum value
+	InstanceTypeM6a32xlarge = "m6a.32xlarge"
 
-	// InstanceTypeR5n24xlarge is a InstanceType enum value
-	InstanceTypeR5n24xlarge = "r5n.24xlarge"
-
-	// InstanceTypeR5nMetal is a InstanceType enum value
-	InstanceTypeR5nMetal = "r5n.metal"
-
-	// InstanceTypeInf1Xlarge is a InstanceType enum value
-	InstanceTypeInf1Xlarge = "inf1.xlarge"
-
-	// InstanceTypeInf12xlarge is a InstanceType enum value
-	InstanceTypeInf12xlarge = "inf1.2xlarge"
-
-	// InstanceTypeInf16xlarge is a InstanceType enum value
-	InstanceTypeInf16xlarge = "inf1.6xlarge"
-
-	// InstanceTypeInf124xlarge is a InstanceType enum value
-	InstanceTypeInf124xlarge = "inf1.24xlarge"
+	// InstanceTypeM6a48xlarge is a InstanceType enum value
+	InstanceTypeM6a48xlarge = "m6a.48xlarge"
 
 	// InstanceTypeM6gMetal is a InstanceType enum value
 	InstanceTypeM6gMetal = "m6g.metal"
@@ -161586,36 +163343,6 @@ const (
 	// InstanceTypeM6gd16xlarge is a InstanceType enum value
 	InstanceTypeM6gd16xlarge = "m6gd.16xlarge"
 
-	// InstanceTypeM6aLarge is a InstanceType enum value
-	InstanceTypeM6aLarge = "m6a.large"
-
-	// InstanceTypeM6aXlarge is a InstanceType enum value
-	InstanceTypeM6aXlarge = "m6a.xlarge"
-
-	// InstanceTypeM6a2xlarge is a InstanceType enum value
-	InstanceTypeM6a2xlarge = "m6a.2xlarge"
-
-	// InstanceTypeM6a4xlarge is a InstanceType enum value
-	InstanceTypeM6a4xlarge = "m6a.4xlarge"
-
-	// InstanceTypeM6a8xlarge is a InstanceType enum value
-	InstanceTypeM6a8xlarge = "m6a.8xlarge"
-
-	// InstanceTypeM6a12xlarge is a InstanceType enum value
-	InstanceTypeM6a12xlarge = "m6a.12xlarge"
-
-	// InstanceTypeM6a16xlarge is a InstanceType enum value
-	InstanceTypeM6a16xlarge = "m6a.16xlarge"
-
-	// InstanceTypeM6a24xlarge is a InstanceType enum value
-	InstanceTypeM6a24xlarge = "m6a.24xlarge"
-
-	// InstanceTypeM6a32xlarge is a InstanceType enum value
-	InstanceTypeM6a32xlarge = "m6a.32xlarge"
-
-	// InstanceTypeM6a48xlarge is a InstanceType enum value
-	InstanceTypeM6a48xlarge = "m6a.48xlarge"
-
 	// InstanceTypeM6iLarge is a InstanceType enum value
 	InstanceTypeM6iLarge = "m6i.large"
 
@@ -161643,8 +163370,500 @@ const (
 	// InstanceTypeM6i32xlarge is a InstanceType enum value
 	InstanceTypeM6i32xlarge = "m6i.32xlarge"
 
+	// InstanceTypeM6iMetal is a InstanceType enum value
+	InstanceTypeM6iMetal = "m6i.metal"
+
 	// InstanceTypeMac1Metal is a InstanceType enum value
 	InstanceTypeMac1Metal = "mac1.metal"
+
+	// InstanceTypeP2Xlarge is a InstanceType enum value
+	InstanceTypeP2Xlarge = "p2.xlarge"
+
+	// InstanceTypeP28xlarge is a InstanceType enum value
+	InstanceTypeP28xlarge = "p2.8xlarge"
+
+	// InstanceTypeP216xlarge is a InstanceType enum value
+	InstanceTypeP216xlarge = "p2.16xlarge"
+
+	// InstanceTypeP32xlarge is a InstanceType enum value
+	InstanceTypeP32xlarge = "p3.2xlarge"
+
+	// InstanceTypeP38xlarge is a InstanceType enum value
+	InstanceTypeP38xlarge = "p3.8xlarge"
+
+	// InstanceTypeP316xlarge is a InstanceType enum value
+	InstanceTypeP316xlarge = "p3.16xlarge"
+
+	// InstanceTypeP3dn24xlarge is a InstanceType enum value
+	InstanceTypeP3dn24xlarge = "p3dn.24xlarge"
+
+	// InstanceTypeP4d24xlarge is a InstanceType enum value
+	InstanceTypeP4d24xlarge = "p4d.24xlarge"
+
+	// InstanceTypeR3Large is a InstanceType enum value
+	InstanceTypeR3Large = "r3.large"
+
+	// InstanceTypeR3Xlarge is a InstanceType enum value
+	InstanceTypeR3Xlarge = "r3.xlarge"
+
+	// InstanceTypeR32xlarge is a InstanceType enum value
+	InstanceTypeR32xlarge = "r3.2xlarge"
+
+	// InstanceTypeR34xlarge is a InstanceType enum value
+	InstanceTypeR34xlarge = "r3.4xlarge"
+
+	// InstanceTypeR38xlarge is a InstanceType enum value
+	InstanceTypeR38xlarge = "r3.8xlarge"
+
+	// InstanceTypeR4Large is a InstanceType enum value
+	InstanceTypeR4Large = "r4.large"
+
+	// InstanceTypeR4Xlarge is a InstanceType enum value
+	InstanceTypeR4Xlarge = "r4.xlarge"
+
+	// InstanceTypeR42xlarge is a InstanceType enum value
+	InstanceTypeR42xlarge = "r4.2xlarge"
+
+	// InstanceTypeR44xlarge is a InstanceType enum value
+	InstanceTypeR44xlarge = "r4.4xlarge"
+
+	// InstanceTypeR48xlarge is a InstanceType enum value
+	InstanceTypeR48xlarge = "r4.8xlarge"
+
+	// InstanceTypeR416xlarge is a InstanceType enum value
+	InstanceTypeR416xlarge = "r4.16xlarge"
+
+	// InstanceTypeR5Large is a InstanceType enum value
+	InstanceTypeR5Large = "r5.large"
+
+	// InstanceTypeR5Xlarge is a InstanceType enum value
+	InstanceTypeR5Xlarge = "r5.xlarge"
+
+	// InstanceTypeR52xlarge is a InstanceType enum value
+	InstanceTypeR52xlarge = "r5.2xlarge"
+
+	// InstanceTypeR54xlarge is a InstanceType enum value
+	InstanceTypeR54xlarge = "r5.4xlarge"
+
+	// InstanceTypeR58xlarge is a InstanceType enum value
+	InstanceTypeR58xlarge = "r5.8xlarge"
+
+	// InstanceTypeR512xlarge is a InstanceType enum value
+	InstanceTypeR512xlarge = "r5.12xlarge"
+
+	// InstanceTypeR516xlarge is a InstanceType enum value
+	InstanceTypeR516xlarge = "r5.16xlarge"
+
+	// InstanceTypeR524xlarge is a InstanceType enum value
+	InstanceTypeR524xlarge = "r5.24xlarge"
+
+	// InstanceTypeR5Metal is a InstanceType enum value
+	InstanceTypeR5Metal = "r5.metal"
+
+	// InstanceTypeR5aLarge is a InstanceType enum value
+	InstanceTypeR5aLarge = "r5a.large"
+
+	// InstanceTypeR5aXlarge is a InstanceType enum value
+	InstanceTypeR5aXlarge = "r5a.xlarge"
+
+	// InstanceTypeR5a2xlarge is a InstanceType enum value
+	InstanceTypeR5a2xlarge = "r5a.2xlarge"
+
+	// InstanceTypeR5a4xlarge is a InstanceType enum value
+	InstanceTypeR5a4xlarge = "r5a.4xlarge"
+
+	// InstanceTypeR5a8xlarge is a InstanceType enum value
+	InstanceTypeR5a8xlarge = "r5a.8xlarge"
+
+	// InstanceTypeR5a12xlarge is a InstanceType enum value
+	InstanceTypeR5a12xlarge = "r5a.12xlarge"
+
+	// InstanceTypeR5a16xlarge is a InstanceType enum value
+	InstanceTypeR5a16xlarge = "r5a.16xlarge"
+
+	// InstanceTypeR5a24xlarge is a InstanceType enum value
+	InstanceTypeR5a24xlarge = "r5a.24xlarge"
+
+	// InstanceTypeR5adLarge is a InstanceType enum value
+	InstanceTypeR5adLarge = "r5ad.large"
+
+	// InstanceTypeR5adXlarge is a InstanceType enum value
+	InstanceTypeR5adXlarge = "r5ad.xlarge"
+
+	// InstanceTypeR5ad2xlarge is a InstanceType enum value
+	InstanceTypeR5ad2xlarge = "r5ad.2xlarge"
+
+	// InstanceTypeR5ad4xlarge is a InstanceType enum value
+	InstanceTypeR5ad4xlarge = "r5ad.4xlarge"
+
+	// InstanceTypeR5ad8xlarge is a InstanceType enum value
+	InstanceTypeR5ad8xlarge = "r5ad.8xlarge"
+
+	// InstanceTypeR5ad12xlarge is a InstanceType enum value
+	InstanceTypeR5ad12xlarge = "r5ad.12xlarge"
+
+	// InstanceTypeR5ad16xlarge is a InstanceType enum value
+	InstanceTypeR5ad16xlarge = "r5ad.16xlarge"
+
+	// InstanceTypeR5ad24xlarge is a InstanceType enum value
+	InstanceTypeR5ad24xlarge = "r5ad.24xlarge"
+
+	// InstanceTypeR5bLarge is a InstanceType enum value
+	InstanceTypeR5bLarge = "r5b.large"
+
+	// InstanceTypeR5bXlarge is a InstanceType enum value
+	InstanceTypeR5bXlarge = "r5b.xlarge"
+
+	// InstanceTypeR5b2xlarge is a InstanceType enum value
+	InstanceTypeR5b2xlarge = "r5b.2xlarge"
+
+	// InstanceTypeR5b4xlarge is a InstanceType enum value
+	InstanceTypeR5b4xlarge = "r5b.4xlarge"
+
+	// InstanceTypeR5b8xlarge is a InstanceType enum value
+	InstanceTypeR5b8xlarge = "r5b.8xlarge"
+
+	// InstanceTypeR5b12xlarge is a InstanceType enum value
+	InstanceTypeR5b12xlarge = "r5b.12xlarge"
+
+	// InstanceTypeR5b16xlarge is a InstanceType enum value
+	InstanceTypeR5b16xlarge = "r5b.16xlarge"
+
+	// InstanceTypeR5b24xlarge is a InstanceType enum value
+	InstanceTypeR5b24xlarge = "r5b.24xlarge"
+
+	// InstanceTypeR5bMetal is a InstanceType enum value
+	InstanceTypeR5bMetal = "r5b.metal"
+
+	// InstanceTypeR5dLarge is a InstanceType enum value
+	InstanceTypeR5dLarge = "r5d.large"
+
+	// InstanceTypeR5dXlarge is a InstanceType enum value
+	InstanceTypeR5dXlarge = "r5d.xlarge"
+
+	// InstanceTypeR5d2xlarge is a InstanceType enum value
+	InstanceTypeR5d2xlarge = "r5d.2xlarge"
+
+	// InstanceTypeR5d4xlarge is a InstanceType enum value
+	InstanceTypeR5d4xlarge = "r5d.4xlarge"
+
+	// InstanceTypeR5d8xlarge is a InstanceType enum value
+	InstanceTypeR5d8xlarge = "r5d.8xlarge"
+
+	// InstanceTypeR5d12xlarge is a InstanceType enum value
+	InstanceTypeR5d12xlarge = "r5d.12xlarge"
+
+	// InstanceTypeR5d16xlarge is a InstanceType enum value
+	InstanceTypeR5d16xlarge = "r5d.16xlarge"
+
+	// InstanceTypeR5d24xlarge is a InstanceType enum value
+	InstanceTypeR5d24xlarge = "r5d.24xlarge"
+
+	// InstanceTypeR5dMetal is a InstanceType enum value
+	InstanceTypeR5dMetal = "r5d.metal"
+
+	// InstanceTypeR5dnLarge is a InstanceType enum value
+	InstanceTypeR5dnLarge = "r5dn.large"
+
+	// InstanceTypeR5dnXlarge is a InstanceType enum value
+	InstanceTypeR5dnXlarge = "r5dn.xlarge"
+
+	// InstanceTypeR5dn2xlarge is a InstanceType enum value
+	InstanceTypeR5dn2xlarge = "r5dn.2xlarge"
+
+	// InstanceTypeR5dn4xlarge is a InstanceType enum value
+	InstanceTypeR5dn4xlarge = "r5dn.4xlarge"
+
+	// InstanceTypeR5dn8xlarge is a InstanceType enum value
+	InstanceTypeR5dn8xlarge = "r5dn.8xlarge"
+
+	// InstanceTypeR5dn12xlarge is a InstanceType enum value
+	InstanceTypeR5dn12xlarge = "r5dn.12xlarge"
+
+	// InstanceTypeR5dn16xlarge is a InstanceType enum value
+	InstanceTypeR5dn16xlarge = "r5dn.16xlarge"
+
+	// InstanceTypeR5dn24xlarge is a InstanceType enum value
+	InstanceTypeR5dn24xlarge = "r5dn.24xlarge"
+
+	// InstanceTypeR5dnMetal is a InstanceType enum value
+	InstanceTypeR5dnMetal = "r5dn.metal"
+
+	// InstanceTypeR5nLarge is a InstanceType enum value
+	InstanceTypeR5nLarge = "r5n.large"
+
+	// InstanceTypeR5nXlarge is a InstanceType enum value
+	InstanceTypeR5nXlarge = "r5n.xlarge"
+
+	// InstanceTypeR5n2xlarge is a InstanceType enum value
+	InstanceTypeR5n2xlarge = "r5n.2xlarge"
+
+	// InstanceTypeR5n4xlarge is a InstanceType enum value
+	InstanceTypeR5n4xlarge = "r5n.4xlarge"
+
+	// InstanceTypeR5n8xlarge is a InstanceType enum value
+	InstanceTypeR5n8xlarge = "r5n.8xlarge"
+
+	// InstanceTypeR5n12xlarge is a InstanceType enum value
+	InstanceTypeR5n12xlarge = "r5n.12xlarge"
+
+	// InstanceTypeR5n16xlarge is a InstanceType enum value
+	InstanceTypeR5n16xlarge = "r5n.16xlarge"
+
+	// InstanceTypeR5n24xlarge is a InstanceType enum value
+	InstanceTypeR5n24xlarge = "r5n.24xlarge"
+
+	// InstanceTypeR5nMetal is a InstanceType enum value
+	InstanceTypeR5nMetal = "r5n.metal"
+
+	// InstanceTypeR6gMedium is a InstanceType enum value
+	InstanceTypeR6gMedium = "r6g.medium"
+
+	// InstanceTypeR6gLarge is a InstanceType enum value
+	InstanceTypeR6gLarge = "r6g.large"
+
+	// InstanceTypeR6gXlarge is a InstanceType enum value
+	InstanceTypeR6gXlarge = "r6g.xlarge"
+
+	// InstanceTypeR6g2xlarge is a InstanceType enum value
+	InstanceTypeR6g2xlarge = "r6g.2xlarge"
+
+	// InstanceTypeR6g4xlarge is a InstanceType enum value
+	InstanceTypeR6g4xlarge = "r6g.4xlarge"
+
+	// InstanceTypeR6g8xlarge is a InstanceType enum value
+	InstanceTypeR6g8xlarge = "r6g.8xlarge"
+
+	// InstanceTypeR6g12xlarge is a InstanceType enum value
+	InstanceTypeR6g12xlarge = "r6g.12xlarge"
+
+	// InstanceTypeR6g16xlarge is a InstanceType enum value
+	InstanceTypeR6g16xlarge = "r6g.16xlarge"
+
+	// InstanceTypeR6gMetal is a InstanceType enum value
+	InstanceTypeR6gMetal = "r6g.metal"
+
+	// InstanceTypeR6gdMedium is a InstanceType enum value
+	InstanceTypeR6gdMedium = "r6gd.medium"
+
+	// InstanceTypeR6gdLarge is a InstanceType enum value
+	InstanceTypeR6gdLarge = "r6gd.large"
+
+	// InstanceTypeR6gdXlarge is a InstanceType enum value
+	InstanceTypeR6gdXlarge = "r6gd.xlarge"
+
+	// InstanceTypeR6gd2xlarge is a InstanceType enum value
+	InstanceTypeR6gd2xlarge = "r6gd.2xlarge"
+
+	// InstanceTypeR6gd4xlarge is a InstanceType enum value
+	InstanceTypeR6gd4xlarge = "r6gd.4xlarge"
+
+	// InstanceTypeR6gd8xlarge is a InstanceType enum value
+	InstanceTypeR6gd8xlarge = "r6gd.8xlarge"
+
+	// InstanceTypeR6gd12xlarge is a InstanceType enum value
+	InstanceTypeR6gd12xlarge = "r6gd.12xlarge"
+
+	// InstanceTypeR6gd16xlarge is a InstanceType enum value
+	InstanceTypeR6gd16xlarge = "r6gd.16xlarge"
+
+	// InstanceTypeR6gdMetal is a InstanceType enum value
+	InstanceTypeR6gdMetal = "r6gd.metal"
+
+	// InstanceTypeR6iLarge is a InstanceType enum value
+	InstanceTypeR6iLarge = "r6i.large"
+
+	// InstanceTypeR6iXlarge is a InstanceType enum value
+	InstanceTypeR6iXlarge = "r6i.xlarge"
+
+	// InstanceTypeR6i2xlarge is a InstanceType enum value
+	InstanceTypeR6i2xlarge = "r6i.2xlarge"
+
+	// InstanceTypeR6i4xlarge is a InstanceType enum value
+	InstanceTypeR6i4xlarge = "r6i.4xlarge"
+
+	// InstanceTypeR6i8xlarge is a InstanceType enum value
+	InstanceTypeR6i8xlarge = "r6i.8xlarge"
+
+	// InstanceTypeR6i12xlarge is a InstanceType enum value
+	InstanceTypeR6i12xlarge = "r6i.12xlarge"
+
+	// InstanceTypeR6i16xlarge is a InstanceType enum value
+	InstanceTypeR6i16xlarge = "r6i.16xlarge"
+
+	// InstanceTypeR6i24xlarge is a InstanceType enum value
+	InstanceTypeR6i24xlarge = "r6i.24xlarge"
+
+	// InstanceTypeR6i32xlarge is a InstanceType enum value
+	InstanceTypeR6i32xlarge = "r6i.32xlarge"
+
+	// InstanceTypeR6iMetal is a InstanceType enum value
+	InstanceTypeR6iMetal = "r6i.metal"
+
+	// InstanceTypeT1Micro is a InstanceType enum value
+	InstanceTypeT1Micro = "t1.micro"
+
+	// InstanceTypeT2Nano is a InstanceType enum value
+	InstanceTypeT2Nano = "t2.nano"
+
+	// InstanceTypeT2Micro is a InstanceType enum value
+	InstanceTypeT2Micro = "t2.micro"
+
+	// InstanceTypeT2Small is a InstanceType enum value
+	InstanceTypeT2Small = "t2.small"
+
+	// InstanceTypeT2Medium is a InstanceType enum value
+	InstanceTypeT2Medium = "t2.medium"
+
+	// InstanceTypeT2Large is a InstanceType enum value
+	InstanceTypeT2Large = "t2.large"
+
+	// InstanceTypeT2Xlarge is a InstanceType enum value
+	InstanceTypeT2Xlarge = "t2.xlarge"
+
+	// InstanceTypeT22xlarge is a InstanceType enum value
+	InstanceTypeT22xlarge = "t2.2xlarge"
+
+	// InstanceTypeT3Nano is a InstanceType enum value
+	InstanceTypeT3Nano = "t3.nano"
+
+	// InstanceTypeT3Micro is a InstanceType enum value
+	InstanceTypeT3Micro = "t3.micro"
+
+	// InstanceTypeT3Small is a InstanceType enum value
+	InstanceTypeT3Small = "t3.small"
+
+	// InstanceTypeT3Medium is a InstanceType enum value
+	InstanceTypeT3Medium = "t3.medium"
+
+	// InstanceTypeT3Large is a InstanceType enum value
+	InstanceTypeT3Large = "t3.large"
+
+	// InstanceTypeT3Xlarge is a InstanceType enum value
+	InstanceTypeT3Xlarge = "t3.xlarge"
+
+	// InstanceTypeT32xlarge is a InstanceType enum value
+	InstanceTypeT32xlarge = "t3.2xlarge"
+
+	// InstanceTypeT3aNano is a InstanceType enum value
+	InstanceTypeT3aNano = "t3a.nano"
+
+	// InstanceTypeT3aMicro is a InstanceType enum value
+	InstanceTypeT3aMicro = "t3a.micro"
+
+	// InstanceTypeT3aSmall is a InstanceType enum value
+	InstanceTypeT3aSmall = "t3a.small"
+
+	// InstanceTypeT3aMedium is a InstanceType enum value
+	InstanceTypeT3aMedium = "t3a.medium"
+
+	// InstanceTypeT3aLarge is a InstanceType enum value
+	InstanceTypeT3aLarge = "t3a.large"
+
+	// InstanceTypeT3aXlarge is a InstanceType enum value
+	InstanceTypeT3aXlarge = "t3a.xlarge"
+
+	// InstanceTypeT3a2xlarge is a InstanceType enum value
+	InstanceTypeT3a2xlarge = "t3a.2xlarge"
+
+	// InstanceTypeT4gNano is a InstanceType enum value
+	InstanceTypeT4gNano = "t4g.nano"
+
+	// InstanceTypeT4gMicro is a InstanceType enum value
+	InstanceTypeT4gMicro = "t4g.micro"
+
+	// InstanceTypeT4gSmall is a InstanceType enum value
+	InstanceTypeT4gSmall = "t4g.small"
+
+	// InstanceTypeT4gMedium is a InstanceType enum value
+	InstanceTypeT4gMedium = "t4g.medium"
+
+	// InstanceTypeT4gLarge is a InstanceType enum value
+	InstanceTypeT4gLarge = "t4g.large"
+
+	// InstanceTypeT4gXlarge is a InstanceType enum value
+	InstanceTypeT4gXlarge = "t4g.xlarge"
+
+	// InstanceTypeT4g2xlarge is a InstanceType enum value
+	InstanceTypeT4g2xlarge = "t4g.2xlarge"
+
+	// InstanceTypeU6tb156xlarge is a InstanceType enum value
+	InstanceTypeU6tb156xlarge = "u-6tb1.56xlarge"
+
+	// InstanceTypeU6tb1112xlarge is a InstanceType enum value
+	InstanceTypeU6tb1112xlarge = "u-6tb1.112xlarge"
+
+	// InstanceTypeU9tb1112xlarge is a InstanceType enum value
+	InstanceTypeU9tb1112xlarge = "u-9tb1.112xlarge"
+
+	// InstanceTypeU12tb1112xlarge is a InstanceType enum value
+	InstanceTypeU12tb1112xlarge = "u-12tb1.112xlarge"
+
+	// InstanceTypeU6tb1Metal is a InstanceType enum value
+	InstanceTypeU6tb1Metal = "u-6tb1.metal"
+
+	// InstanceTypeU9tb1Metal is a InstanceType enum value
+	InstanceTypeU9tb1Metal = "u-9tb1.metal"
+
+	// InstanceTypeU12tb1Metal is a InstanceType enum value
+	InstanceTypeU12tb1Metal = "u-12tb1.metal"
+
+	// InstanceTypeU18tb1Metal is a InstanceType enum value
+	InstanceTypeU18tb1Metal = "u-18tb1.metal"
+
+	// InstanceTypeU24tb1Metal is a InstanceType enum value
+	InstanceTypeU24tb1Metal = "u-24tb1.metal"
+
+	// InstanceTypeVt13xlarge is a InstanceType enum value
+	InstanceTypeVt13xlarge = "vt1.3xlarge"
+
+	// InstanceTypeVt16xlarge is a InstanceType enum value
+	InstanceTypeVt16xlarge = "vt1.6xlarge"
+
+	// InstanceTypeVt124xlarge is a InstanceType enum value
+	InstanceTypeVt124xlarge = "vt1.24xlarge"
+
+	// InstanceTypeX116xlarge is a InstanceType enum value
+	InstanceTypeX116xlarge = "x1.16xlarge"
+
+	// InstanceTypeX132xlarge is a InstanceType enum value
+	InstanceTypeX132xlarge = "x1.32xlarge"
+
+	// InstanceTypeX1eXlarge is a InstanceType enum value
+	InstanceTypeX1eXlarge = "x1e.xlarge"
+
+	// InstanceTypeX1e2xlarge is a InstanceType enum value
+	InstanceTypeX1e2xlarge = "x1e.2xlarge"
+
+	// InstanceTypeX1e4xlarge is a InstanceType enum value
+	InstanceTypeX1e4xlarge = "x1e.4xlarge"
+
+	// InstanceTypeX1e8xlarge is a InstanceType enum value
+	InstanceTypeX1e8xlarge = "x1e.8xlarge"
+
+	// InstanceTypeX1e16xlarge is a InstanceType enum value
+	InstanceTypeX1e16xlarge = "x1e.16xlarge"
+
+	// InstanceTypeX1e32xlarge is a InstanceType enum value
+	InstanceTypeX1e32xlarge = "x1e.32xlarge"
+
+	// InstanceTypeX2iezn2xlarge is a InstanceType enum value
+	InstanceTypeX2iezn2xlarge = "x2iezn.2xlarge"
+
+	// InstanceTypeX2iezn4xlarge is a InstanceType enum value
+	InstanceTypeX2iezn4xlarge = "x2iezn.4xlarge"
+
+	// InstanceTypeX2iezn6xlarge is a InstanceType enum value
+	InstanceTypeX2iezn6xlarge = "x2iezn.6xlarge"
+
+	// InstanceTypeX2iezn8xlarge is a InstanceType enum value
+	InstanceTypeX2iezn8xlarge = "x2iezn.8xlarge"
+
+	// InstanceTypeX2iezn12xlarge is a InstanceType enum value
+	InstanceTypeX2iezn12xlarge = "x2iezn.12xlarge"
+
+	// InstanceTypeX2ieznMetal is a InstanceType enum value
+	InstanceTypeX2ieznMetal = "x2iezn.metal"
 
 	// InstanceTypeX2gdMedium is a InstanceType enum value
 	InstanceTypeX2gdMedium = "x2gd.medium"
@@ -161673,245 +163892,37 @@ const (
 	// InstanceTypeX2gdMetal is a InstanceType enum value
 	InstanceTypeX2gdMetal = "x2gd.metal"
 
-	// InstanceTypeVt13xlarge is a InstanceType enum value
-	InstanceTypeVt13xlarge = "vt1.3xlarge"
+	// InstanceTypeZ1dLarge is a InstanceType enum value
+	InstanceTypeZ1dLarge = "z1d.large"
 
-	// InstanceTypeVt16xlarge is a InstanceType enum value
-	InstanceTypeVt16xlarge = "vt1.6xlarge"
+	// InstanceTypeZ1dXlarge is a InstanceType enum value
+	InstanceTypeZ1dXlarge = "z1d.xlarge"
 
-	// InstanceTypeVt124xlarge is a InstanceType enum value
-	InstanceTypeVt124xlarge = "vt1.24xlarge"
+	// InstanceTypeZ1d2xlarge is a InstanceType enum value
+	InstanceTypeZ1d2xlarge = "z1d.2xlarge"
 
-	// InstanceTypeIm4gn16xlarge is a InstanceType enum value
-	InstanceTypeIm4gn16xlarge = "im4gn.16xlarge"
+	// InstanceTypeZ1d3xlarge is a InstanceType enum value
+	InstanceTypeZ1d3xlarge = "z1d.3xlarge"
 
-	// InstanceTypeIm4gn2xlarge is a InstanceType enum value
-	InstanceTypeIm4gn2xlarge = "im4gn.2xlarge"
+	// InstanceTypeZ1d6xlarge is a InstanceType enum value
+	InstanceTypeZ1d6xlarge = "z1d.6xlarge"
 
-	// InstanceTypeIm4gn4xlarge is a InstanceType enum value
-	InstanceTypeIm4gn4xlarge = "im4gn.4xlarge"
+	// InstanceTypeZ1d12xlarge is a InstanceType enum value
+	InstanceTypeZ1d12xlarge = "z1d.12xlarge"
 
-	// InstanceTypeIm4gn8xlarge is a InstanceType enum value
-	InstanceTypeIm4gn8xlarge = "im4gn.8xlarge"
-
-	// InstanceTypeIm4gnLarge is a InstanceType enum value
-	InstanceTypeIm4gnLarge = "im4gn.large"
-
-	// InstanceTypeIm4gnXlarge is a InstanceType enum value
-	InstanceTypeIm4gnXlarge = "im4gn.xlarge"
-
-	// InstanceTypeIs4gen2xlarge is a InstanceType enum value
-	InstanceTypeIs4gen2xlarge = "is4gen.2xlarge"
-
-	// InstanceTypeIs4gen4xlarge is a InstanceType enum value
-	InstanceTypeIs4gen4xlarge = "is4gen.4xlarge"
-
-	// InstanceTypeIs4gen8xlarge is a InstanceType enum value
-	InstanceTypeIs4gen8xlarge = "is4gen.8xlarge"
-
-	// InstanceTypeIs4genLarge is a InstanceType enum value
-	InstanceTypeIs4genLarge = "is4gen.large"
-
-	// InstanceTypeIs4genMedium is a InstanceType enum value
-	InstanceTypeIs4genMedium = "is4gen.medium"
-
-	// InstanceTypeIs4genXlarge is a InstanceType enum value
-	InstanceTypeIs4genXlarge = "is4gen.xlarge"
-
-	// InstanceTypeG5gXlarge is a InstanceType enum value
-	InstanceTypeG5gXlarge = "g5g.xlarge"
-
-	// InstanceTypeG5g2xlarge is a InstanceType enum value
-	InstanceTypeG5g2xlarge = "g5g.2xlarge"
-
-	// InstanceTypeG5g4xlarge is a InstanceType enum value
-	InstanceTypeG5g4xlarge = "g5g.4xlarge"
-
-	// InstanceTypeG5g8xlarge is a InstanceType enum value
-	InstanceTypeG5g8xlarge = "g5g.8xlarge"
-
-	// InstanceTypeG5g16xlarge is a InstanceType enum value
-	InstanceTypeG5g16xlarge = "g5g.16xlarge"
-
-	// InstanceTypeG5gMetal is a InstanceType enum value
-	InstanceTypeG5gMetal = "g5g.metal"
-
-	// InstanceTypeG5Xlarge is a InstanceType enum value
-	InstanceTypeG5Xlarge = "g5.xlarge"
-
-	// InstanceTypeG52xlarge is a InstanceType enum value
-	InstanceTypeG52xlarge = "g5.2xlarge"
-
-	// InstanceTypeG54xlarge is a InstanceType enum value
-	InstanceTypeG54xlarge = "g5.4xlarge"
-
-	// InstanceTypeG58xlarge is a InstanceType enum value
-	InstanceTypeG58xlarge = "g5.8xlarge"
-
-	// InstanceTypeG512xlarge is a InstanceType enum value
-	InstanceTypeG512xlarge = "g5.12xlarge"
-
-	// InstanceTypeG516xlarge is a InstanceType enum value
-	InstanceTypeG516xlarge = "g5.16xlarge"
-
-	// InstanceTypeG524xlarge is a InstanceType enum value
-	InstanceTypeG524xlarge = "g5.24xlarge"
-
-	// InstanceTypeG548xlarge is a InstanceType enum value
-	InstanceTypeG548xlarge = "g5.48xlarge"
+	// InstanceTypeZ1dMetal is a InstanceType enum value
+	InstanceTypeZ1dMetal = "z1d.metal"
 )
 
 // InstanceType_Values returns all elements of the InstanceType enum
 func InstanceType_Values() []string {
 	return []string{
-		InstanceTypeT1Micro,
-		InstanceTypeT2Nano,
-		InstanceTypeT2Micro,
-		InstanceTypeT2Small,
-		InstanceTypeT2Medium,
-		InstanceTypeT2Large,
-		InstanceTypeT2Xlarge,
-		InstanceTypeT22xlarge,
-		InstanceTypeT3Nano,
-		InstanceTypeT3Micro,
-		InstanceTypeT3Small,
-		InstanceTypeT3Medium,
-		InstanceTypeT3Large,
-		InstanceTypeT3Xlarge,
-		InstanceTypeT32xlarge,
-		InstanceTypeT3aNano,
-		InstanceTypeT3aMicro,
-		InstanceTypeT3aSmall,
-		InstanceTypeT3aMedium,
-		InstanceTypeT3aLarge,
-		InstanceTypeT3aXlarge,
-		InstanceTypeT3a2xlarge,
-		InstanceTypeT4gNano,
-		InstanceTypeT4gMicro,
-		InstanceTypeT4gSmall,
-		InstanceTypeT4gMedium,
-		InstanceTypeT4gLarge,
-		InstanceTypeT4gXlarge,
-		InstanceTypeT4g2xlarge,
-		InstanceTypeM1Small,
-		InstanceTypeM1Medium,
-		InstanceTypeM1Large,
-		InstanceTypeM1Xlarge,
-		InstanceTypeM3Medium,
-		InstanceTypeM3Large,
-		InstanceTypeM3Xlarge,
-		InstanceTypeM32xlarge,
-		InstanceTypeM4Large,
-		InstanceTypeM4Xlarge,
-		InstanceTypeM42xlarge,
-		InstanceTypeM44xlarge,
-		InstanceTypeM410xlarge,
-		InstanceTypeM416xlarge,
-		InstanceTypeM2Xlarge,
-		InstanceTypeM22xlarge,
-		InstanceTypeM24xlarge,
-		InstanceTypeCr18xlarge,
-		InstanceTypeR3Large,
-		InstanceTypeR3Xlarge,
-		InstanceTypeR32xlarge,
-		InstanceTypeR34xlarge,
-		InstanceTypeR38xlarge,
-		InstanceTypeR4Large,
-		InstanceTypeR4Xlarge,
-		InstanceTypeR42xlarge,
-		InstanceTypeR44xlarge,
-		InstanceTypeR48xlarge,
-		InstanceTypeR416xlarge,
-		InstanceTypeR5Large,
-		InstanceTypeR5Xlarge,
-		InstanceTypeR52xlarge,
-		InstanceTypeR54xlarge,
-		InstanceTypeR58xlarge,
-		InstanceTypeR512xlarge,
-		InstanceTypeR516xlarge,
-		InstanceTypeR524xlarge,
-		InstanceTypeR5Metal,
-		InstanceTypeR5aLarge,
-		InstanceTypeR5aXlarge,
-		InstanceTypeR5a2xlarge,
-		InstanceTypeR5a4xlarge,
-		InstanceTypeR5a8xlarge,
-		InstanceTypeR5a12xlarge,
-		InstanceTypeR5a16xlarge,
-		InstanceTypeR5a24xlarge,
-		InstanceTypeR5bLarge,
-		InstanceTypeR5bXlarge,
-		InstanceTypeR5b2xlarge,
-		InstanceTypeR5b4xlarge,
-		InstanceTypeR5b8xlarge,
-		InstanceTypeR5b12xlarge,
-		InstanceTypeR5b16xlarge,
-		InstanceTypeR5b24xlarge,
-		InstanceTypeR5bMetal,
-		InstanceTypeR5dLarge,
-		InstanceTypeR5dXlarge,
-		InstanceTypeR5d2xlarge,
-		InstanceTypeR5d4xlarge,
-		InstanceTypeR5d8xlarge,
-		InstanceTypeR5d12xlarge,
-		InstanceTypeR5d16xlarge,
-		InstanceTypeR5d24xlarge,
-		InstanceTypeR5dMetal,
-		InstanceTypeR5adLarge,
-		InstanceTypeR5adXlarge,
-		InstanceTypeR5ad2xlarge,
-		InstanceTypeR5ad4xlarge,
-		InstanceTypeR5ad8xlarge,
-		InstanceTypeR5ad12xlarge,
-		InstanceTypeR5ad16xlarge,
-		InstanceTypeR5ad24xlarge,
-		InstanceTypeR6gMetal,
-		InstanceTypeR6gMedium,
-		InstanceTypeR6gLarge,
-		InstanceTypeR6gXlarge,
-		InstanceTypeR6g2xlarge,
-		InstanceTypeR6g4xlarge,
-		InstanceTypeR6g8xlarge,
-		InstanceTypeR6g12xlarge,
-		InstanceTypeR6g16xlarge,
-		InstanceTypeR6gdMetal,
-		InstanceTypeR6gdMedium,
-		InstanceTypeR6gdLarge,
-		InstanceTypeR6gdXlarge,
-		InstanceTypeR6gd2xlarge,
-		InstanceTypeR6gd4xlarge,
-		InstanceTypeR6gd8xlarge,
-		InstanceTypeR6gd12xlarge,
-		InstanceTypeR6gd16xlarge,
-		InstanceTypeX116xlarge,
-		InstanceTypeX132xlarge,
-		InstanceTypeX1eXlarge,
-		InstanceTypeX1e2xlarge,
-		InstanceTypeX1e4xlarge,
-		InstanceTypeX1e8xlarge,
-		InstanceTypeX1e16xlarge,
-		InstanceTypeX1e32xlarge,
-		InstanceTypeI2Xlarge,
-		InstanceTypeI22xlarge,
-		InstanceTypeI24xlarge,
-		InstanceTypeI28xlarge,
-		InstanceTypeI3Large,
-		InstanceTypeI3Xlarge,
-		InstanceTypeI32xlarge,
-		InstanceTypeI34xlarge,
-		InstanceTypeI38xlarge,
-		InstanceTypeI316xlarge,
-		InstanceTypeI3Metal,
-		InstanceTypeI3enLarge,
-		InstanceTypeI3enXlarge,
-		InstanceTypeI3en2xlarge,
-		InstanceTypeI3en3xlarge,
-		InstanceTypeI3en6xlarge,
-		InstanceTypeI3en12xlarge,
-		InstanceTypeI3en24xlarge,
-		InstanceTypeI3enMetal,
-		InstanceTypeHi14xlarge,
-		InstanceTypeHs18xlarge,
+		InstanceTypeA1Medium,
+		InstanceTypeA1Large,
+		InstanceTypeA1Xlarge,
+		InstanceTypeA12xlarge,
+		InstanceTypeA14xlarge,
+		InstanceTypeA1Metal,
 		InstanceTypeC1Medium,
 		InstanceTypeC1Xlarge,
 		InstanceTypeC3Large,
@@ -161965,7 +163976,6 @@ func InstanceType_Values() []string {
 		InstanceTypeC5n9xlarge,
 		InstanceTypeC5n18xlarge,
 		InstanceTypeC5nMetal,
-		InstanceTypeC6gMetal,
 		InstanceTypeC6gMedium,
 		InstanceTypeC6gLarge,
 		InstanceTypeC6gXlarge,
@@ -161974,7 +163984,7 @@ func InstanceType_Values() []string {
 		InstanceTypeC6g8xlarge,
 		InstanceTypeC6g12xlarge,
 		InstanceTypeC6g16xlarge,
-		InstanceTypeC6gdMetal,
+		InstanceTypeC6gMetal,
 		InstanceTypeC6gdMedium,
 		InstanceTypeC6gdLarge,
 		InstanceTypeC6gdXlarge,
@@ -161983,6 +163993,7 @@ func InstanceType_Values() []string {
 		InstanceTypeC6gd8xlarge,
 		InstanceTypeC6gd12xlarge,
 		InstanceTypeC6gd16xlarge,
+		InstanceTypeC6gdMetal,
 		InstanceTypeC6gnMedium,
 		InstanceTypeC6gnLarge,
 		InstanceTypeC6gnXlarge,
@@ -162000,35 +164011,11 @@ func InstanceType_Values() []string {
 		InstanceTypeC6i16xlarge,
 		InstanceTypeC6i24xlarge,
 		InstanceTypeC6i32xlarge,
+		InstanceTypeC6iMetal,
 		InstanceTypeCc14xlarge,
 		InstanceTypeCc28xlarge,
-		InstanceTypeG22xlarge,
-		InstanceTypeG28xlarge,
-		InstanceTypeG34xlarge,
-		InstanceTypeG38xlarge,
-		InstanceTypeG316xlarge,
-		InstanceTypeG3sXlarge,
-		InstanceTypeG4adXlarge,
-		InstanceTypeG4ad2xlarge,
-		InstanceTypeG4ad4xlarge,
-		InstanceTypeG4ad8xlarge,
-		InstanceTypeG4ad16xlarge,
-		InstanceTypeG4dnXlarge,
-		InstanceTypeG4dn2xlarge,
-		InstanceTypeG4dn4xlarge,
-		InstanceTypeG4dn8xlarge,
-		InstanceTypeG4dn12xlarge,
-		InstanceTypeG4dn16xlarge,
-		InstanceTypeG4dnMetal,
 		InstanceTypeCg14xlarge,
-		InstanceTypeP2Xlarge,
-		InstanceTypeP28xlarge,
-		InstanceTypeP216xlarge,
-		InstanceTypeP32xlarge,
-		InstanceTypeP38xlarge,
-		InstanceTypeP316xlarge,
-		InstanceTypeP3dn24xlarge,
-		InstanceTypeP4d24xlarge,
+		InstanceTypeCr18xlarge,
 		InstanceTypeD2Xlarge,
 		InstanceTypeD22xlarge,
 		InstanceTypeD24xlarge,
@@ -162047,6 +164034,97 @@ func InstanceType_Values() []string {
 		InstanceTypeF12xlarge,
 		InstanceTypeF14xlarge,
 		InstanceTypeF116xlarge,
+		InstanceTypeG22xlarge,
+		InstanceTypeG28xlarge,
+		InstanceTypeG34xlarge,
+		InstanceTypeG38xlarge,
+		InstanceTypeG316xlarge,
+		InstanceTypeG3sXlarge,
+		InstanceTypeG4adXlarge,
+		InstanceTypeG4ad2xlarge,
+		InstanceTypeG4ad4xlarge,
+		InstanceTypeG4ad8xlarge,
+		InstanceTypeG4ad16xlarge,
+		InstanceTypeG4dnXlarge,
+		InstanceTypeG4dn2xlarge,
+		InstanceTypeG4dn4xlarge,
+		InstanceTypeG4dn8xlarge,
+		InstanceTypeG4dn12xlarge,
+		InstanceTypeG4dn16xlarge,
+		InstanceTypeG4dnMetal,
+		InstanceTypeG5Xlarge,
+		InstanceTypeG52xlarge,
+		InstanceTypeG54xlarge,
+		InstanceTypeG58xlarge,
+		InstanceTypeG512xlarge,
+		InstanceTypeG516xlarge,
+		InstanceTypeG524xlarge,
+		InstanceTypeG548xlarge,
+		InstanceTypeG5gXlarge,
+		InstanceTypeG5g2xlarge,
+		InstanceTypeG5g4xlarge,
+		InstanceTypeG5g8xlarge,
+		InstanceTypeG5g16xlarge,
+		InstanceTypeG5gMetal,
+		InstanceTypeHi14xlarge,
+		InstanceTypeHpc6a48xlarge,
+		InstanceTypeHs18xlarge,
+		InstanceTypeH12xlarge,
+		InstanceTypeH14xlarge,
+		InstanceTypeH18xlarge,
+		InstanceTypeH116xlarge,
+		InstanceTypeI2Xlarge,
+		InstanceTypeI22xlarge,
+		InstanceTypeI24xlarge,
+		InstanceTypeI28xlarge,
+		InstanceTypeI3Large,
+		InstanceTypeI3Xlarge,
+		InstanceTypeI32xlarge,
+		InstanceTypeI34xlarge,
+		InstanceTypeI38xlarge,
+		InstanceTypeI316xlarge,
+		InstanceTypeI3Metal,
+		InstanceTypeI3enLarge,
+		InstanceTypeI3enXlarge,
+		InstanceTypeI3en2xlarge,
+		InstanceTypeI3en3xlarge,
+		InstanceTypeI3en6xlarge,
+		InstanceTypeI3en12xlarge,
+		InstanceTypeI3en24xlarge,
+		InstanceTypeI3enMetal,
+		InstanceTypeIm4gnLarge,
+		InstanceTypeIm4gnXlarge,
+		InstanceTypeIm4gn2xlarge,
+		InstanceTypeIm4gn4xlarge,
+		InstanceTypeIm4gn8xlarge,
+		InstanceTypeIm4gn16xlarge,
+		InstanceTypeInf1Xlarge,
+		InstanceTypeInf12xlarge,
+		InstanceTypeInf16xlarge,
+		InstanceTypeInf124xlarge,
+		InstanceTypeIs4genMedium,
+		InstanceTypeIs4genLarge,
+		InstanceTypeIs4genXlarge,
+		InstanceTypeIs4gen2xlarge,
+		InstanceTypeIs4gen4xlarge,
+		InstanceTypeIs4gen8xlarge,
+		InstanceTypeM1Small,
+		InstanceTypeM1Medium,
+		InstanceTypeM1Large,
+		InstanceTypeM1Xlarge,
+		InstanceTypeM2Xlarge,
+		InstanceTypeM22xlarge,
+		InstanceTypeM24xlarge,
+		InstanceTypeM3Medium,
+		InstanceTypeM3Large,
+		InstanceTypeM3Xlarge,
+		InstanceTypeM32xlarge,
+		InstanceTypeM4Large,
+		InstanceTypeM4Xlarge,
+		InstanceTypeM42xlarge,
+		InstanceTypeM44xlarge,
+		InstanceTypeM410xlarge,
+		InstanceTypeM416xlarge,
 		InstanceTypeM5Large,
 		InstanceTypeM5Xlarge,
 		InstanceTypeM52xlarge,
@@ -162064,6 +164142,14 @@ func InstanceType_Values() []string {
 		InstanceTypeM5a12xlarge,
 		InstanceTypeM5a16xlarge,
 		InstanceTypeM5a24xlarge,
+		InstanceTypeM5adLarge,
+		InstanceTypeM5adXlarge,
+		InstanceTypeM5ad2xlarge,
+		InstanceTypeM5ad4xlarge,
+		InstanceTypeM5ad8xlarge,
+		InstanceTypeM5ad12xlarge,
+		InstanceTypeM5ad16xlarge,
+		InstanceTypeM5ad24xlarge,
 		InstanceTypeM5dLarge,
 		InstanceTypeM5dXlarge,
 		InstanceTypeM5d2xlarge,
@@ -162073,47 +164159,6 @@ func InstanceType_Values() []string {
 		InstanceTypeM5d16xlarge,
 		InstanceTypeM5d24xlarge,
 		InstanceTypeM5dMetal,
-		InstanceTypeM5adLarge,
-		InstanceTypeM5adXlarge,
-		InstanceTypeM5ad2xlarge,
-		InstanceTypeM5ad4xlarge,
-		InstanceTypeM5ad8xlarge,
-		InstanceTypeM5ad12xlarge,
-		InstanceTypeM5ad16xlarge,
-		InstanceTypeM5ad24xlarge,
-		InstanceTypeM5znLarge,
-		InstanceTypeM5znXlarge,
-		InstanceTypeM5zn2xlarge,
-		InstanceTypeM5zn3xlarge,
-		InstanceTypeM5zn6xlarge,
-		InstanceTypeM5zn12xlarge,
-		InstanceTypeM5znMetal,
-		InstanceTypeH12xlarge,
-		InstanceTypeH14xlarge,
-		InstanceTypeH18xlarge,
-		InstanceTypeH116xlarge,
-		InstanceTypeZ1dLarge,
-		InstanceTypeZ1dXlarge,
-		InstanceTypeZ1d2xlarge,
-		InstanceTypeZ1d3xlarge,
-		InstanceTypeZ1d6xlarge,
-		InstanceTypeZ1d12xlarge,
-		InstanceTypeZ1dMetal,
-		InstanceTypeU6tb156xlarge,
-		InstanceTypeU6tb1112xlarge,
-		InstanceTypeU9tb1112xlarge,
-		InstanceTypeU12tb1112xlarge,
-		InstanceTypeU6tb1Metal,
-		InstanceTypeU9tb1Metal,
-		InstanceTypeU12tb1Metal,
-		InstanceTypeU18tb1Metal,
-		InstanceTypeU24tb1Metal,
-		InstanceTypeA1Medium,
-		InstanceTypeA1Large,
-		InstanceTypeA1Xlarge,
-		InstanceTypeA12xlarge,
-		InstanceTypeA14xlarge,
-		InstanceTypeA1Metal,
 		InstanceTypeM5dnLarge,
 		InstanceTypeM5dnXlarge,
 		InstanceTypeM5dn2xlarge,
@@ -162132,28 +164177,23 @@ func InstanceType_Values() []string {
 		InstanceTypeM5n16xlarge,
 		InstanceTypeM5n24xlarge,
 		InstanceTypeM5nMetal,
-		InstanceTypeR5dnLarge,
-		InstanceTypeR5dnXlarge,
-		InstanceTypeR5dn2xlarge,
-		InstanceTypeR5dn4xlarge,
-		InstanceTypeR5dn8xlarge,
-		InstanceTypeR5dn12xlarge,
-		InstanceTypeR5dn16xlarge,
-		InstanceTypeR5dn24xlarge,
-		InstanceTypeR5dnMetal,
-		InstanceTypeR5nLarge,
-		InstanceTypeR5nXlarge,
-		InstanceTypeR5n2xlarge,
-		InstanceTypeR5n4xlarge,
-		InstanceTypeR5n8xlarge,
-		InstanceTypeR5n12xlarge,
-		InstanceTypeR5n16xlarge,
-		InstanceTypeR5n24xlarge,
-		InstanceTypeR5nMetal,
-		InstanceTypeInf1Xlarge,
-		InstanceTypeInf12xlarge,
-		InstanceTypeInf16xlarge,
-		InstanceTypeInf124xlarge,
+		InstanceTypeM5znLarge,
+		InstanceTypeM5znXlarge,
+		InstanceTypeM5zn2xlarge,
+		InstanceTypeM5zn3xlarge,
+		InstanceTypeM5zn6xlarge,
+		InstanceTypeM5zn12xlarge,
+		InstanceTypeM5znMetal,
+		InstanceTypeM6aLarge,
+		InstanceTypeM6aXlarge,
+		InstanceTypeM6a2xlarge,
+		InstanceTypeM6a4xlarge,
+		InstanceTypeM6a8xlarge,
+		InstanceTypeM6a12xlarge,
+		InstanceTypeM6a16xlarge,
+		InstanceTypeM6a24xlarge,
+		InstanceTypeM6a32xlarge,
+		InstanceTypeM6a48xlarge,
 		InstanceTypeM6gMetal,
 		InstanceTypeM6gMedium,
 		InstanceTypeM6gLarge,
@@ -162172,16 +164212,6 @@ func InstanceType_Values() []string {
 		InstanceTypeM6gd8xlarge,
 		InstanceTypeM6gd12xlarge,
 		InstanceTypeM6gd16xlarge,
-		InstanceTypeM6aLarge,
-		InstanceTypeM6aXlarge,
-		InstanceTypeM6a2xlarge,
-		InstanceTypeM6a4xlarge,
-		InstanceTypeM6a8xlarge,
-		InstanceTypeM6a12xlarge,
-		InstanceTypeM6a16xlarge,
-		InstanceTypeM6a24xlarge,
-		InstanceTypeM6a32xlarge,
-		InstanceTypeM6a48xlarge,
 		InstanceTypeM6iLarge,
 		InstanceTypeM6iXlarge,
 		InstanceTypeM6i2xlarge,
@@ -162191,7 +164221,171 @@ func InstanceType_Values() []string {
 		InstanceTypeM6i16xlarge,
 		InstanceTypeM6i24xlarge,
 		InstanceTypeM6i32xlarge,
+		InstanceTypeM6iMetal,
 		InstanceTypeMac1Metal,
+		InstanceTypeP2Xlarge,
+		InstanceTypeP28xlarge,
+		InstanceTypeP216xlarge,
+		InstanceTypeP32xlarge,
+		InstanceTypeP38xlarge,
+		InstanceTypeP316xlarge,
+		InstanceTypeP3dn24xlarge,
+		InstanceTypeP4d24xlarge,
+		InstanceTypeR3Large,
+		InstanceTypeR3Xlarge,
+		InstanceTypeR32xlarge,
+		InstanceTypeR34xlarge,
+		InstanceTypeR38xlarge,
+		InstanceTypeR4Large,
+		InstanceTypeR4Xlarge,
+		InstanceTypeR42xlarge,
+		InstanceTypeR44xlarge,
+		InstanceTypeR48xlarge,
+		InstanceTypeR416xlarge,
+		InstanceTypeR5Large,
+		InstanceTypeR5Xlarge,
+		InstanceTypeR52xlarge,
+		InstanceTypeR54xlarge,
+		InstanceTypeR58xlarge,
+		InstanceTypeR512xlarge,
+		InstanceTypeR516xlarge,
+		InstanceTypeR524xlarge,
+		InstanceTypeR5Metal,
+		InstanceTypeR5aLarge,
+		InstanceTypeR5aXlarge,
+		InstanceTypeR5a2xlarge,
+		InstanceTypeR5a4xlarge,
+		InstanceTypeR5a8xlarge,
+		InstanceTypeR5a12xlarge,
+		InstanceTypeR5a16xlarge,
+		InstanceTypeR5a24xlarge,
+		InstanceTypeR5adLarge,
+		InstanceTypeR5adXlarge,
+		InstanceTypeR5ad2xlarge,
+		InstanceTypeR5ad4xlarge,
+		InstanceTypeR5ad8xlarge,
+		InstanceTypeR5ad12xlarge,
+		InstanceTypeR5ad16xlarge,
+		InstanceTypeR5ad24xlarge,
+		InstanceTypeR5bLarge,
+		InstanceTypeR5bXlarge,
+		InstanceTypeR5b2xlarge,
+		InstanceTypeR5b4xlarge,
+		InstanceTypeR5b8xlarge,
+		InstanceTypeR5b12xlarge,
+		InstanceTypeR5b16xlarge,
+		InstanceTypeR5b24xlarge,
+		InstanceTypeR5bMetal,
+		InstanceTypeR5dLarge,
+		InstanceTypeR5dXlarge,
+		InstanceTypeR5d2xlarge,
+		InstanceTypeR5d4xlarge,
+		InstanceTypeR5d8xlarge,
+		InstanceTypeR5d12xlarge,
+		InstanceTypeR5d16xlarge,
+		InstanceTypeR5d24xlarge,
+		InstanceTypeR5dMetal,
+		InstanceTypeR5dnLarge,
+		InstanceTypeR5dnXlarge,
+		InstanceTypeR5dn2xlarge,
+		InstanceTypeR5dn4xlarge,
+		InstanceTypeR5dn8xlarge,
+		InstanceTypeR5dn12xlarge,
+		InstanceTypeR5dn16xlarge,
+		InstanceTypeR5dn24xlarge,
+		InstanceTypeR5dnMetal,
+		InstanceTypeR5nLarge,
+		InstanceTypeR5nXlarge,
+		InstanceTypeR5n2xlarge,
+		InstanceTypeR5n4xlarge,
+		InstanceTypeR5n8xlarge,
+		InstanceTypeR5n12xlarge,
+		InstanceTypeR5n16xlarge,
+		InstanceTypeR5n24xlarge,
+		InstanceTypeR5nMetal,
+		InstanceTypeR6gMedium,
+		InstanceTypeR6gLarge,
+		InstanceTypeR6gXlarge,
+		InstanceTypeR6g2xlarge,
+		InstanceTypeR6g4xlarge,
+		InstanceTypeR6g8xlarge,
+		InstanceTypeR6g12xlarge,
+		InstanceTypeR6g16xlarge,
+		InstanceTypeR6gMetal,
+		InstanceTypeR6gdMedium,
+		InstanceTypeR6gdLarge,
+		InstanceTypeR6gdXlarge,
+		InstanceTypeR6gd2xlarge,
+		InstanceTypeR6gd4xlarge,
+		InstanceTypeR6gd8xlarge,
+		InstanceTypeR6gd12xlarge,
+		InstanceTypeR6gd16xlarge,
+		InstanceTypeR6gdMetal,
+		InstanceTypeR6iLarge,
+		InstanceTypeR6iXlarge,
+		InstanceTypeR6i2xlarge,
+		InstanceTypeR6i4xlarge,
+		InstanceTypeR6i8xlarge,
+		InstanceTypeR6i12xlarge,
+		InstanceTypeR6i16xlarge,
+		InstanceTypeR6i24xlarge,
+		InstanceTypeR6i32xlarge,
+		InstanceTypeR6iMetal,
+		InstanceTypeT1Micro,
+		InstanceTypeT2Nano,
+		InstanceTypeT2Micro,
+		InstanceTypeT2Small,
+		InstanceTypeT2Medium,
+		InstanceTypeT2Large,
+		InstanceTypeT2Xlarge,
+		InstanceTypeT22xlarge,
+		InstanceTypeT3Nano,
+		InstanceTypeT3Micro,
+		InstanceTypeT3Small,
+		InstanceTypeT3Medium,
+		InstanceTypeT3Large,
+		InstanceTypeT3Xlarge,
+		InstanceTypeT32xlarge,
+		InstanceTypeT3aNano,
+		InstanceTypeT3aMicro,
+		InstanceTypeT3aSmall,
+		InstanceTypeT3aMedium,
+		InstanceTypeT3aLarge,
+		InstanceTypeT3aXlarge,
+		InstanceTypeT3a2xlarge,
+		InstanceTypeT4gNano,
+		InstanceTypeT4gMicro,
+		InstanceTypeT4gSmall,
+		InstanceTypeT4gMedium,
+		InstanceTypeT4gLarge,
+		InstanceTypeT4gXlarge,
+		InstanceTypeT4g2xlarge,
+		InstanceTypeU6tb156xlarge,
+		InstanceTypeU6tb1112xlarge,
+		InstanceTypeU9tb1112xlarge,
+		InstanceTypeU12tb1112xlarge,
+		InstanceTypeU6tb1Metal,
+		InstanceTypeU9tb1Metal,
+		InstanceTypeU12tb1Metal,
+		InstanceTypeU18tb1Metal,
+		InstanceTypeU24tb1Metal,
+		InstanceTypeVt13xlarge,
+		InstanceTypeVt16xlarge,
+		InstanceTypeVt124xlarge,
+		InstanceTypeX116xlarge,
+		InstanceTypeX132xlarge,
+		InstanceTypeX1eXlarge,
+		InstanceTypeX1e2xlarge,
+		InstanceTypeX1e4xlarge,
+		InstanceTypeX1e8xlarge,
+		InstanceTypeX1e16xlarge,
+		InstanceTypeX1e32xlarge,
+		InstanceTypeX2iezn2xlarge,
+		InstanceTypeX2iezn4xlarge,
+		InstanceTypeX2iezn6xlarge,
+		InstanceTypeX2iezn8xlarge,
+		InstanceTypeX2iezn12xlarge,
+		InstanceTypeX2ieznMetal,
 		InstanceTypeX2gdMedium,
 		InstanceTypeX2gdLarge,
 		InstanceTypeX2gdXlarge,
@@ -162201,35 +164395,13 @@ func InstanceType_Values() []string {
 		InstanceTypeX2gd12xlarge,
 		InstanceTypeX2gd16xlarge,
 		InstanceTypeX2gdMetal,
-		InstanceTypeVt13xlarge,
-		InstanceTypeVt16xlarge,
-		InstanceTypeVt124xlarge,
-		InstanceTypeIm4gn16xlarge,
-		InstanceTypeIm4gn2xlarge,
-		InstanceTypeIm4gn4xlarge,
-		InstanceTypeIm4gn8xlarge,
-		InstanceTypeIm4gnLarge,
-		InstanceTypeIm4gnXlarge,
-		InstanceTypeIs4gen2xlarge,
-		InstanceTypeIs4gen4xlarge,
-		InstanceTypeIs4gen8xlarge,
-		InstanceTypeIs4genLarge,
-		InstanceTypeIs4genMedium,
-		InstanceTypeIs4genXlarge,
-		InstanceTypeG5gXlarge,
-		InstanceTypeG5g2xlarge,
-		InstanceTypeG5g4xlarge,
-		InstanceTypeG5g8xlarge,
-		InstanceTypeG5g16xlarge,
-		InstanceTypeG5gMetal,
-		InstanceTypeG5Xlarge,
-		InstanceTypeG52xlarge,
-		InstanceTypeG54xlarge,
-		InstanceTypeG58xlarge,
-		InstanceTypeG512xlarge,
-		InstanceTypeG516xlarge,
-		InstanceTypeG524xlarge,
-		InstanceTypeG548xlarge,
+		InstanceTypeZ1dLarge,
+		InstanceTypeZ1dXlarge,
+		InstanceTypeZ1d2xlarge,
+		InstanceTypeZ1d3xlarge,
+		InstanceTypeZ1d6xlarge,
+		InstanceTypeZ1d12xlarge,
+		InstanceTypeZ1dMetal,
 	}
 }
 
@@ -162766,6 +164938,22 @@ func LaunchTemplateInstanceMetadataProtocolIpv6_Values() []string {
 }
 
 const (
+	// LaunchTemplateInstanceMetadataTagsStateDisabled is a LaunchTemplateInstanceMetadataTagsState enum value
+	LaunchTemplateInstanceMetadataTagsStateDisabled = "disabled"
+
+	// LaunchTemplateInstanceMetadataTagsStateEnabled is a LaunchTemplateInstanceMetadataTagsState enum value
+	LaunchTemplateInstanceMetadataTagsStateEnabled = "enabled"
+)
+
+// LaunchTemplateInstanceMetadataTagsState_Values returns all elements of the LaunchTemplateInstanceMetadataTagsState enum
+func LaunchTemplateInstanceMetadataTagsState_Values() []string {
+	return []string{
+		LaunchTemplateInstanceMetadataTagsStateDisabled,
+		LaunchTemplateInstanceMetadataTagsStateEnabled,
+	}
+}
+
+const (
 	// ListingStateAvailable is a ListingState enum value
 	ListingStateAvailable = "available"
 
@@ -163165,6 +165353,45 @@ const (
 
 	// NetworkInterfaceTypeTrunk is a NetworkInterfaceType enum value
 	NetworkInterfaceTypeTrunk = "trunk"
+
+	// NetworkInterfaceTypeLoadBalancer is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeLoadBalancer = "load_balancer"
+
+	// NetworkInterfaceTypeNetworkLoadBalancer is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeNetworkLoadBalancer = "network_load_balancer"
+
+	// NetworkInterfaceTypeVpcEndpoint is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeVpcEndpoint = "vpc_endpoint"
+
+	// NetworkInterfaceTypeBranch is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeBranch = "branch"
+
+	// NetworkInterfaceTypeTransitGateway is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeTransitGateway = "transit_gateway"
+
+	// NetworkInterfaceTypeLambda is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeLambda = "lambda"
+
+	// NetworkInterfaceTypeQuicksight is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeQuicksight = "quicksight"
+
+	// NetworkInterfaceTypeGlobalAcceleratorManaged is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeGlobalAcceleratorManaged = "global_accelerator_managed"
+
+	// NetworkInterfaceTypeApiGatewayManaged is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeApiGatewayManaged = "api_gateway_managed"
+
+	// NetworkInterfaceTypeGatewayLoadBalancer is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeGatewayLoadBalancer = "gateway_load_balancer"
+
+	// NetworkInterfaceTypeGatewayLoadBalancerEndpoint is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeGatewayLoadBalancerEndpoint = "gateway_load_balancer_endpoint"
+
+	// NetworkInterfaceTypeIotRulesManaged is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeIotRulesManaged = "iot_rules_managed"
+
+	// NetworkInterfaceTypeAwsCodestarConnectionsManaged is a NetworkInterfaceType enum value
+	NetworkInterfaceTypeAwsCodestarConnectionsManaged = "aws_codestar_connections_managed"
 )
 
 // NetworkInterfaceType_Values returns all elements of the NetworkInterfaceType enum
@@ -163174,6 +165401,19 @@ func NetworkInterfaceType_Values() []string {
 		NetworkInterfaceTypeNatGateway,
 		NetworkInterfaceTypeEfa,
 		NetworkInterfaceTypeTrunk,
+		NetworkInterfaceTypeLoadBalancer,
+		NetworkInterfaceTypeNetworkLoadBalancer,
+		NetworkInterfaceTypeVpcEndpoint,
+		NetworkInterfaceTypeBranch,
+		NetworkInterfaceTypeTransitGateway,
+		NetworkInterfaceTypeLambda,
+		NetworkInterfaceTypeQuicksight,
+		NetworkInterfaceTypeGlobalAcceleratorManaged,
+		NetworkInterfaceTypeApiGatewayManaged,
+		NetworkInterfaceTypeGatewayLoadBalancer,
+		NetworkInterfaceTypeGatewayLoadBalancerEndpoint,
+		NetworkInterfaceTypeIotRulesManaged,
+		NetworkInterfaceTypeAwsCodestarConnectionsManaged,
 	}
 }
 
@@ -163911,6 +166151,9 @@ const (
 	// ResourceTypeSubnet is a ResourceType enum value
 	ResourceTypeSubnet = "subnet"
 
+	// ResourceTypeSubnetCidrReservation is a ResourceType enum value
+	ResourceTypeSubnetCidrReservation = "subnet-cidr-reservation"
+
 	// ResourceTypeTrafficMirrorFilter is a ResourceType enum value
 	ResourceTypeTrafficMirrorFilter = "traffic-mirror-filter"
 
@@ -164014,6 +166257,7 @@ func ResourceType_Values() []string {
 		ResourceTypeSpotFleetRequest,
 		ResourceTypeSpotInstancesRequest,
 		ResourceTypeSubnet,
+		ResourceTypeSubnetCidrReservation,
 		ResourceTypeTrafficMirrorFilter,
 		ResourceTypeTrafficMirrorSession,
 		ResourceTypeTrafficMirrorTarget,
