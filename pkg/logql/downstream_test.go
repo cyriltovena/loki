@@ -2,6 +2,7 @@ package logql
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -14,8 +15,10 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 )
 
-var nilShardMetrics = NewShardMapperMetrics(nil)
-var nilRangeMetrics = NewRangeMapperMetrics(nil)
+var (
+	nilShardMetrics = NewShardMapperMetrics(nil)
+	nilRangeMetrics = NewRangeMapperMetrics(nil)
+)
 
 func TestMappingEquivalence(t *testing.T) {
 	var (
@@ -34,21 +37,25 @@ func TestMappingEquivalence(t *testing.T) {
 		query       string
 		approximate bool
 	}{
-		{`1`, false},
-		{`1 + 1`, false},
-		{`{a="1"}`, false},
-		{`{a="1"} |= "number: 10"`, false},
-		{`rate({a=~".+"}[1s])`, false},
-		{`sum by (a) (rate({a=~".+"}[1s]))`, false},
-		{`sum(rate({a=~".+"}[1s]))`, false},
-		{`max without (a) (rate({a=~".+"}[1s]))`, false},
-		{`count(rate({a=~".+"}[1s]))`, false},
-		{`avg(rate({a=~".+"}[1s]))`, true},
-		{`avg(rate({a=~".+"}[1s])) by (a)`, true},
-		{`1 + sum by (cluster) (rate({a=~".+"}[1s]))`, false},
-		{`sum(max(rate({a=~".+"}[1s])))`, false},
-		{`max(count(rate({a=~".+"}[1s])))`, false},
-		{`max(sum by (cluster) (rate({a=~".+"}[1s]))) / count(rate({a=~".+"}[1s]))`, false},
+		// {`1`, false},
+		// {`1 + 1`, false},
+		// {`{a="1"}`, false},
+		// {`{a="1"} |= "number: 10"`, false},
+		// {`rate({a=~".+"}[1s])`, false},
+		// {`sum by (a) (rate({a=~".+"}[1s]))`, false},
+		// {`sum(rate({a=~".+"}[1s]))`, false},
+		// {`max without (a) (rate({a=~".+"}[1s]))`, false},
+		// {`count(rate({a=~".+"}[1s]))`, false},
+		// {`avg(rate({a=~".+"}[1s]))`, true},
+		// {`avg(rate({a=~".+"}[1s])) by (a)`, true},
+		// {`1 + sum by (cluster) (rate({a=~".+"}[1s]))`, false},
+		// {`sum(max(rate({a=~".+"}[1s])))`, false},
+		// {`max(count(rate({a=~".+"}[1s])))`, false},
+		// {`max(sum by (cluster) (rate({a=~".+"}[1s]))) / count(rate({a=~".+"}[1s]))`, false},
+		// {`max_over_time({a=~".+"}| logfmt | unwrap line [1s]) by (level)`, false},
+		{`max_over_time({a=~".+"}| logfmt | unwrap line [1s])`, false},
+		// {`max(max_over_time({a=~".+"}| logfmt | unwrap line [1s]) by (level))`, false},
+
 		// topk prefers already-seen values in tiebreakers. Since the test data generates
 		// the same log lines for each series & the resulting promql.Vectors aren't deterministically
 		// sorted by labels, we don't expect this to pass.
@@ -80,6 +87,10 @@ func TestMappingEquivalence(t *testing.T) {
 
 			mapper := NewShardMapper(ConstantShards(shards), nilShardMetrics)
 			_, mapped, err := mapper.Parse(tc.query)
+			fmt.Println("")
+			fmt.Println(mapped.String())
+			fmt.Println("")
+
 			require.Nil(t, err)
 
 			shardedQry := sharded.Query(ctx, params, mapped)

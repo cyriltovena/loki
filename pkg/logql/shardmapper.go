@@ -166,8 +166,23 @@ func (m ShardMapper) mapSampleExpr(expr syntax.SampleExpr, r *downstreamRecorder
 			next: head,
 		}
 	}
+	// max_over_time() => max_over_time(shard) ++ max_over_time(shard) ++ max_over_time(shard)
+	// max(left=>max_over_time(shard) ++ max_over_time(shard) ++ max_over_time(shard))
+	// ??  max without() (max_over_time(shard) ++ max_over_time(shard) ++ max_over_time(shard))
 	r.Add(shards, MetricsKey)
-
+	if rangeExpr, ok := expr.(*syntax.RangeAggregationExpr); ok {
+		if rangeExpr.Operation == syntax.OpRangeTypeMax {
+			grouping := rangeExpr.Grouping
+			if grouping == nil {
+				grouping = &syntax.Grouping{Without: true}
+			}
+			return &syntax.VectorAggregationExpr{
+				Left:      head,
+				Grouping:  grouping,
+				Operation: syntax.OpTypeMax,
+			}, nil
+		}
+	}
 	return head, nil
 }
 
@@ -275,7 +290,7 @@ func (m ShardMapper) mapRangeAggregationExpr(expr *syntax.RangeAggregationExpr, 
 		return expr, nil
 	}
 	switch expr.Operation {
-	case syntax.OpRangeTypeCount, syntax.OpRangeTypeRate, syntax.OpRangeTypeBytesRate, syntax.OpRangeTypeBytes:
+	case syntax.OpRangeTypeCount, syntax.OpRangeTypeRate, syntax.OpRangeTypeBytesRate, syntax.OpRangeTypeBytes, syntax.OpRangeTypeMax:
 		// count_over_time(x) -> count_over_time(x, shard=1) ++ count_over_time(x, shard=2)...
 		// rate(x) -> rate(x, shard=1) ++ rate(x, shard=2)...
 		// same goes for bytes_rate and bytes_over_time
