@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -105,6 +106,10 @@ func (s *Server) starting(ctx context.Context) error {
 
 	routes := make([]*url.URL, 0, len(all.Instances))
 	for _, instance := range all.Instances {
+		// Skip ourselves.
+		if instance.Addr == s.opts.Cluster.Advertise {
+			continue
+		}
 		u, err := url.Parse("nats://" + instance.Addr)
 		if err != nil {
 			continue
@@ -120,35 +125,38 @@ func (s *Server) running(ctx context.Context) error {
 		<-ctx.Done()
 		s.server.Shutdown()
 	}()
-	// should not do that if we already have a route. too many reload
-	// todo think about how to do that.
-	// go func() {
 
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case <-time.After(2 * time.Second):
-	// 			if len(s.opts.Routes) > 0 {
-	// 				continue
-	// 			}
-	// 			all, _ := s.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
-	// 			routes := make([]*url.URL, 0, len(all.Instances))
-	// 			for _, instance := range all.Instances {
-	// 				u, err := url.Parse("nats://" + instance.Addr)
-	// 				if err != nil {
-	// 					continue
-	// 				}
-	// 				routes = append(routes, u)
-	// 			}
-	// 			if len(routes) == 0 {
-	// 				continue
-	// 			}
-	// 			s.opts.Routes = routes
-	// 			s.server.ReloadOptions(s.opts)
-	// 		}
-	// 	}
-	// }()
+	// Reload routes if none are configured.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+				if len(s.opts.Routes) > 0 {
+					continue
+				}
+				all, _ := s.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
+				routes := make([]*url.URL, 0, len(all.Instances))
+				for _, instance := range all.Instances {
+					// Skip ourselves.
+					if instance.Addr == s.opts.Cluster.Advertise {
+						continue
+					}
+					u, err := url.Parse("nats://" + instance.Addr)
+					if err != nil {
+						continue
+					}
+					routes = append(routes, u)
+				}
+				if len(routes) == 0 {
+					continue
+				}
+				s.opts.Routes = routes
+				s.server.ReloadOptions(s.opts)
+			}
+		}
+	}()
 	if err := nats_server.Run(s.server); err != nil {
 		return err
 	}
