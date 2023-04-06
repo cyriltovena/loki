@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"net/http"
 	"sort"
@@ -111,6 +112,7 @@ type Distributor struct {
 
 	natsConnProvider *loki_nats.ConnProvider
 	conn             *nats.Conn
+	natsConfig       loki_nats.Config
 }
 
 // New a distributor creates.
@@ -208,6 +210,7 @@ func New(
 			Help:      "Total number of times the distributor has sharded streams",
 		}),
 		natsConnProvider: natsConn,
+		natsConfig:       natsConfig,
 	}
 	d.replicationFactor.Set(float64(ingestersRing.ReplicationFactor()))
 	rfStats.Set(int64(ingestersRing.ReplicationFactor()))
@@ -247,6 +250,16 @@ func (d *Distributor) starting(ctx context.Context) error {
 		return err
 	}
 	d.conn = conn
+	d.setupStreams(d.natsConfig.PushStreams)
+	return nil
+}
+
+func (d *Distributor) setupStreams(count int) error {
+	for i := 0; i < d.natsConfig.PushStreams; i++ {
+		if err := d.updateOrCreateStreams(fmt.Sprintf("push_%d", i), fmt.Sprintf("push.*.*.%d", i)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -288,8 +301,8 @@ func (d *Distributor) running(ctx context.Context) error {
 
 func (d *Distributor) stopping(_ error) error {
 	if d.conn != nil {
-		// may be close ?
 		d.conn.Drain()
+		d.conn.Close()
 	}
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
@@ -320,14 +333,17 @@ func (d *Distributor) pushToNATS(ctx context.Context, tenantID string, req *logp
 	if err != nil {
 		level.Warn(util_log.Logger).Log("msg", "failed to get jetstream context", "err", err)
 	}
+	// hash the subject to a stream
+	fnvHash := fnv.New64a()
+
 	subjectPrefix := "push." + tenantID + "."
 	for _, stream := range req.Streams {
-		hash := fmt.Sprintf("%d", stream.Hash)
-		subj := subjectPrefix + hash
-		if err := d.updateOrCreateStreams("push"+tenantID+hash, subj); err != nil {
-			level.Warn(util_log.Logger).Log("msg", "failed to updateOrCreateStreams", "err", err)
-			continue
-		}
+
+		fnvHash.Write([]byte(tenantID + stream.Labels))
+		shard := fnvHash.Sum64() % uint64(d.natsConfig.PushStreams)
+		subj := subjectPrefix + fmt.Sprintf("%d", stream.Hash) + "." + fmt.Sprintf("%d", shard)
+		fnvHash.Reset()
+
 		data, err := stream.Marshal()
 		if err != nil {
 			level.Warn(util_log.Logger).Log("msg", "failed to marshal stream", "err", err)
