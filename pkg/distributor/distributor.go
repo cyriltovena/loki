@@ -247,14 +247,18 @@ func (d *Distributor) starting(ctx context.Context) error {
 		return err
 	}
 	d.conn = conn
-	stream, err := conn.JetStream()
+	return nil
+}
+
+func (d *Distributor) updateOrCreateStreams(name, sb string) error {
+	stream, err := d.conn.JetStream()
 	if err != nil {
 		return errors.Wrap(err, "failed to get jetstream context")
 	}
 	streamOpts := &nats.StreamConfig{
-		Name:      "push",
-		Subjects:  []string{"push.*.*"},
-		Replicas:  1, // todo need at least 3 NATS servers if we want replicas 3 I guess ?
+		Name:      name,
+		Subjects:  []string{sb},
+		Replicas:  3,
 		MaxAge:    4 * time.Hour,
 		Retention: nats.LimitsPolicy,
 		Discard:   nats.DiscardOld,
@@ -311,13 +315,19 @@ func (d *Distributor) pushToNATS(ctx context.Context, tenantID string, req *logp
 	if d.conn == nil {
 		return
 	}
+	level.Debug(util_log.Logger).Log("msg", "pushing to NATS ")
 	jt, err := d.conn.JetStream()
 	if err != nil {
 		level.Warn(util_log.Logger).Log("msg", "failed to get jetstream context", "err", err)
 	}
 	subjectPrefix := "push." + tenantID + "."
 	for _, stream := range req.Streams {
-		subj := subjectPrefix + fmt.Sprintf("%d", stream.Hash)
+		hash := fmt.Sprintf("%d", stream.Hash)
+		subj := subjectPrefix + hash
+		if err := d.updateOrCreateStreams("push"+tenantID+hash, subj); err != nil {
+			level.Warn(util_log.Logger).Log("msg", "failed to updateOrCreateStreams", "err", err)
+			continue
+		}
 		data, err := stream.Marshal()
 		if err != nil {
 			level.Warn(util_log.Logger).Log("msg", "failed to marshal stream", "err", err)
