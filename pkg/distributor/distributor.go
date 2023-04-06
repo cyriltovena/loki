@@ -319,7 +319,11 @@ func (d *Distributor) pushToNATS(ctx context.Context, tenantID string, req *logp
 			level.Warn(util_log.Logger).Log("msg", "failed to marshal stream", "err", err)
 			continue
 		}
-		jt.PublishAsync(subj, data)
+		_, err = jt.PublishAsync(subj, data)
+		if err != nil {
+			level.Warn(util_log.Logger).Log("msg", "failed to PublishAsync stream to NATS", "err", err)
+			continue
+		}
 	}
 
 	// jt.PublishAsync(subj string, data []byte, opts ...nats.PubOpt)
