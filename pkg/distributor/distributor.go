@@ -3,6 +3,7 @@ package distributor
 import (
 	"context"
 	"flag"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/ingester"
+	loki_nats "github.com/grafana/loki/pkg/nats"
+	"github.com/nats-io/nats.go"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -105,6 +108,9 @@ type Distributor struct {
 	ingesterAppendFailures *prometheus.CounterVec
 	replicationFactor      prometheus.Gauge
 	streamShardCount       prometheus.Counter
+
+	natsConnProvider *loki_nats.ConnProvider
+	conn             *nats.Conn
 }
 
 // New a distributor creates.
@@ -114,6 +120,7 @@ func New(
 	configs *runtime.TenantConfigs,
 	ingestersRing ring.ReadRing,
 	overrides Limits,
+	natsConfig loki_nats.Config,
 	registerer prometheus.Registerer,
 ) (*Distributor, error) {
 	factory := cfg.factory
@@ -157,6 +164,11 @@ func New(
 		ingestionRateStrategy = newLocalIngestionRateStrategy(overrides)
 	}
 
+	natsConn, err := loki_nats.NewConnProvider(natsConfig)
+	if err != nil {
+		return nil, err
+	}
+	servs = append(servs, natsConn)
 	labelCache, err := lru.New(maxLabelCacheSize)
 	if err != nil {
 		return nil, err
@@ -195,6 +207,7 @@ func New(
 			Name:      "stream_sharding_count",
 			Help:      "Total number of times the distributor has sharded streams",
 		}),
+		natsConnProvider: natsConn,
 	}
 	d.replicationFactor.Set(float64(ingestersRing.ReplicationFactor()))
 	rfStats.Set(int64(ingestersRing.ReplicationFactor()))
@@ -226,7 +239,38 @@ func New(
 }
 
 func (d *Distributor) starting(ctx context.Context) error {
-	return services.StartManagerAndAwaitHealthy(ctx, d.subservices)
+	if err := services.StartManagerAndAwaitHealthy(ctx, d.subservices); err != nil {
+		return errors.Wrap(err, "failed to start subservices")
+	}
+	conn, err := d.natsConnProvider.GetConn()
+	if err != nil {
+		return err
+	}
+	d.conn = conn
+	stream, err := conn.JetStream()
+	if err != nil {
+		return errors.Wrap(err, "failed to get jetstream context")
+	}
+	streamOpts := &nats.StreamConfig{
+		Name:      "push",
+		Subjects:  []string{"push.*.*"},
+		Replicas:  1, // todo need at least 3 NATS servers if we want replicas 3 I guess ?
+		MaxAge:    4 * time.Hour,
+		Retention: nats.LimitsPolicy,
+		Discard:   nats.DiscardOld,
+	}
+	_, err = stream.UpdateStream(streamOpts)
+	if err != nil {
+		if err == nats.ErrStreamNotFound {
+			_, err = stream.AddStream(streamOpts)
+			if err != nil {
+				return errors.Wrap(err, "failed to add stream")
+			}
+			return nil
+		}
+		return errors.Wrap(err, "failed to update stream")
+	}
+	return nil
 }
 
 func (d *Distributor) running(ctx context.Context) error {
@@ -257,6 +301,29 @@ type pushTracker struct {
 	streamsFailed  atomic.Int32
 	done           chan struct{}
 	err            chan error
+}
+
+func (d *Distributor) pushToNATS(ctx context.Context, tenantID string, req *logproto.PushRequest) {
+	if d.conn == nil {
+		return
+	}
+	jt, err := d.conn.JetStream()
+	if err != nil {
+		level.Warn(util_log.Logger).Log("msg", "failed to get jetstream context", "err", err)
+	}
+	subjectPrefix := "push." + tenantID + "."
+	for _, stream := range req.Streams {
+		subj := subjectPrefix + fmt.Sprintf("%d", stream.Hash)
+		data, err := stream.Marshal()
+		if err != nil {
+			level.Warn(util_log.Logger).Log("msg", "failed to marshal stream", "err", err)
+			continue
+		}
+		jt.PublishAsync(subj, data)
+	}
+
+	// jt.PublishAsync(subj string, data []byte, opts ...nats.PubOpt)
+	// d.conn.Publish("push."+tenantID+".a", []byte("hello"))
 }
 
 // Push a set of streams.
@@ -291,7 +358,7 @@ func (d *Distributor) Push(ctx context.Context, req *logproto.PushRequest) (*log
 				sp.LogKV("event", "finished to validate request")
 			}()
 		}
-		for _, stream := range req.Streams {
+		for i, stream := range req.Streams {
 			// Return early if stream does not contain any entries
 			if len(stream.Entries) == 0 {
 				continue
@@ -311,6 +378,7 @@ func (d *Distributor) Push(ctx context.Context, req *logproto.PushRequest) (*log
 				validation.DiscardedBytes.WithLabelValues(validation.InvalidLabels, tenantID).Add(float64(bytes))
 				continue
 			}
+			req.Streams[i].Hash = stream.Hash
 
 			n := 0
 			streamSize := 0
@@ -365,6 +433,8 @@ func (d *Distributor) Push(ctx context.Context, req *logproto.PushRequest) (*log
 		validation.DiscardedBytes.WithLabelValues(validation.RateLimited, tenantID).Add(float64(validatedLineSize))
 		return nil, httpgrpc.Errorf(http.StatusTooManyRequests, validation.RateLimitedErrorMsg, tenantID, int(d.ingestionRateLimiter.Limit(now, tenantID)), validatedLineCount, validatedLineSize)
 	}
+
+	d.pushToNATS(ctx, tenantID, req)
 
 	const maxExpectedReplicationSet = 5 // typical replication factor 3 plus one for inactive plus one for luck
 	var descs [maxExpectedReplicationSet]ring.InstanceDesc

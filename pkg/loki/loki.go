@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/loki/common"
 	"github.com/grafana/loki/pkg/lokifrontend"
+	"github.com/grafana/loki/pkg/nats"
 	"github.com/grafana/loki/pkg/querier"
 	"github.com/grafana/loki/pkg/querier/queryrange"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
@@ -96,7 +97,7 @@ type Config struct {
 	Worker              worker.Config               `yaml:"frontend_worker,omitempty"`
 	TableManager        index.TableManagerConfig    `yaml:"table_manager,omitempty"`
 	MemberlistKV        memberlist.KVConfig         `yaml:"memberlist" doc:"hidden"`
-	NATS                NATSConfig                  `yaml:"nats,omitempty"`
+	NATS                nats.Config                 `yaml:"nats,omitempty"`
 
 	RuntimeConfig runtimeconfig.Config `yaml:"runtime_config,omitempty"`
 	Tracing       tracing.Config       `yaml:"tracing"`
@@ -617,6 +618,7 @@ func (t *Loki) setupModuleManager() error {
 
 	mm.RegisterModule(RuntimeConfig, t.initRuntimeConfig, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
+	mm.RegisterModule(NATS, t.initNATS)
 	mm.RegisterModule(Ring, t.initRing, modules.UserInvisibleModule)
 	mm.RegisterModule(Overrides, t.initOverrides, modules.UserInvisibleModule)
 	mm.RegisterModule(OverridesExporter, t.initOverridesExporter)
@@ -638,7 +640,6 @@ func (t *Loki) setupModuleManager() error {
 	mm.RegisterModule(IndexGatewayRing, t.initIndexGatewayRing, modules.UserInvisibleModule)
 	mm.RegisterModule(UsageReport, t.initUsageReport)
 	mm.RegisterModule(CacheGenerationLoader, t.initCacheGenerationLoader)
-	mm.RegisterModule(NATS, t.initNATS)
 
 	mm.RegisterModule(All, nil)
 	mm.RegisterModule(Read, nil)

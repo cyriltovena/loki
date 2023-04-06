@@ -3,14 +3,12 @@ package loki
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"hash/fnv"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -19,15 +17,12 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
-	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
-	nats_server "github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	gerrors "github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -36,7 +31,6 @@ import (
 	"github.com/weaveworks/common/middleware"
 	"github.com/weaveworks/common/server"
 	"github.com/weaveworks/common/user"
-	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/grafana/loki/pkg/distributor"
 	"github.com/grafana/loki/pkg/ingester"
@@ -46,6 +40,7 @@ import (
 	"github.com/grafana/loki/pkg/lokifrontend/frontend/transport"
 	"github.com/grafana/loki/pkg/lokifrontend/frontend/v1/frontendv1pb"
 	"github.com/grafana/loki/pkg/lokifrontend/frontend/v2/frontendv2pb"
+	"github.com/grafana/loki/pkg/nats"
 	"github.com/grafana/loki/pkg/querier"
 	"github.com/grafana/loki/pkg/querier/queryrange"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
@@ -70,7 +65,6 @@ import (
 	"github.com/grafana/loki/pkg/storage/stores/shipper/indexgateway"
 	"github.com/grafana/loki/pkg/storage/stores/tsdb"
 	"github.com/grafana/loki/pkg/usagestats"
-	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/httpreq"
 	"github.com/grafana/loki/pkg/util/limiter"
 	util_log "github.com/grafana/loki/pkg/util/log"
@@ -175,282 +169,9 @@ func (t *Loki) initServer() (services.Service, error) {
 	return s, nil
 }
 
-type NATSConfig struct {
-	util.RingConfig `yaml:",inline"`
-	ClusterPort     int    `yaml:"cluster_port"`
-	ClientPort      int    `yaml:"client_port"`
-	TraceLogging    bool   `yaml:"trace_logging"`
-	DataPath        string `yaml:"data_path"`
-}
-
-func (cfg *NATSConfig) RegisterFlags(f *flag.FlagSet) {
-	cfg.RegisterFlagsWithPrefix("nats.", "collectors/", f)
-	f.IntVar(&cfg.ClusterPort, "nats.cluster-port", 4248, "NATS cluster port.")
-	f.IntVar(&cfg.ClientPort, "nats.client-port", 4222, "NATS client port.")
-	f.BoolVar(&cfg.TraceLogging, "nats.trace-logging", false, "Enable NATS trace logging.")
-	f.StringVar(&cfg.DataPath, "nats.data-path", "/tmp/nats/", "NATS data path.")
-}
-
 func (t *Loki) initNATS() (services.Service, error) {
-	return NewNATSService(t.Cfg.NATS, t.isModuleActive(All))
-}
-
-type NATSService struct {
-	services.Service
-	subservices        *services.Manager
-	subservicesWatcher *services.FailureWatcher
-	ring               *ring.Ring
-
-	server *nats_server.Server
-	opts   *nats_server.Options
-}
-
-func NewNATSService(cfg NATSConfig, singleNode bool) (services.Service, error) {
-	cfg.InstancePort = cfg.ClusterPort
-	ringStore, err := kv.NewClient(
-		cfg.KVStore,
-		ring.GetCodec(),
-		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("loki_", prometheus.DefaultRegisterer), "nats"),
-		util_log.Logger,
-	)
-	if err != nil {
-		return nil, err
-	}
-	lcCfg, err := cfg.RingConfig.ToLifecyclerConfig(1, util_log.Logger)
-	if err != nil {
-		return nil, err
-	}
-	var delegate ring.BasicLifecyclerDelegate
-	delegate = ring.NewInstanceRegisterDelegate(ring.ACTIVE, lcCfg.NumTokens)
-	delegate = ring.NewLeaveOnStoppingDelegate(delegate, util_log.Logger)
-	delegate = ring.NewAutoForgetDelegate(4*lcCfg.HeartbeatTimeout, delegate, util_log.Logger)
-	lc, err := ring.NewBasicLifecycler(lcCfg, "nats", "nats", ringStore, delegate, util_log.Logger, prometheus.WrapRegistererWithPrefix("nats_", prometheus.DefaultRegisterer))
-	if err != nil {
-		return nil, err
-	}
-	ringCfg := cfg.ToRingConfig(1)
-	ringCfg.SubringCacheDisabled = true
-	ringClient, err := ring.New(ringCfg, "nats", "nats", util_log.Logger, prometheus.DefaultRegisterer)
-	if err != nil {
-		return nil, err
-	}
-	opts := &nats_server.Options{
-		Port:       cfg.ClientPort,
-		ServerName: cfg.InstanceID,
-		Accounts:   []*nats_server.Account{nats_server.NewAccount("$SYS")},
-		Users: []*nats_server.User{
-			{Username: "loki", Password: "loki", Account: nats_server.NewAccount("$SYS")},
-		},
-	}
-	if !singleNode {
-		opts.Cluster = nats_server.ClusterOpts{
-			Name:      "loki-nats-cluster",
-			Advertise: cfg.InstanceAddr + ":" + strconv.Itoa(cfg.InstancePort),
-			Port:      cfg.InstancePort,
-		}
-	}
-	if cfg.DataPath != "" {
-		opts.StoreDir = cfg.DataPath
-		opts.JetStream = true
-	}
-	natsServer := nats_server.New(opts)
-	if natsServer == nil {
-		return nil, fmt.Errorf("failed to create nats server")
-	}
-	natsServer.SetLoggerV2(NewNATSLogger(util_log.Logger), true, cfg.TraceLogging, true)
-	subSvc, err := services.NewManager(lc, ringClient)
-	if err != nil {
-		return nil, err
-	}
-	s := &NATSService{
-		server:             natsServer,
-		subservicesWatcher: services.NewFailureWatcher(),
-		subservices:        subSvc,
-		opts:               opts,
-		ring:               ringClient,
-	}
-
-	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
-	return s, nil
-}
-
-type NATSFactory struct {
-	cfg NATSConfig
-
-	ring               *ring.Ring
-	subservicesWatcher *services.FailureWatcher
-	subservices        *services.Manager
-	services.Service
-}
-
-func NewNATSFactory(cfg NATSConfig) (*NATSFactory, error) {
-	ringCfg := cfg.ToRingConfig(1)
-	ringCfg.SubringCacheDisabled = true
-	ringClient, err := ring.New(ringCfg, "nats", "nats", util_log.Logger, prometheus.WrapRegistererWithPrefix("nats_factory", prometheus.DefaultRegisterer))
-	if err != nil {
-		return nil, err
-	}
-	subSvc, err := services.NewManager(ringClient)
-	if err != nil {
-		return nil, err
-	}
-	s := &NATSFactory{
-		cfg:                cfg,
-		ring:               ringClient,
-		subservicesWatcher: services.NewFailureWatcher(),
-		subservices:        subSvc,
-	}
-	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
-
-	return s, nil
-}
-
-func (f *NATSFactory) starting(ctx context.Context) error {
-	f.subservicesWatcher.WatchManager(f.subservices)
-
-	if err := services.StartManagerAndAwaitHealthy(ctx, f.subservices); err != nil {
-		return fmt.Errorf("failed to start subservices: %w", err)
-	}
-	return nil
-}
-
-func (f *NATSFactory) running(ctx context.Context) error {
-	<-ctx.Done()
-	return nil
-}
-
-func (f *NATSFactory) stopping(_ error) error {
-	return services.StopManagerAndAwaitStopped(context.Background(), f.subservices)
-}
-
-func (f *NATSFactory) GetConn() (*nats.Conn, error) {
-	// todo better discovery and connection pooling
-	all, _ := f.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
-	if len(all.Instances) == 0 {
-		return nil, fmt.Errorf("no nats instances found")
-	}
-	// remove port from Addr and use client port from NATS Config
-	addr := strings.Split(all.Instances[0].Addr, ":")
-
-	// todo connect using multiple addresses
-	// var servers = "nats://localhost:1222, nats://localhost:1223, nats://localhost:1224"
-	// nc, err := nats.Connect(servers)
-	// // Optionally set ReconnectWait and MaxReconnect attempts.
-	// // This example means 10 seconds total per backend.
-	// nc, err = nats.Connect(servers, nats.MaxReconnects(5), nats.ReconnectWait(2 * time.Second))
-
-	return nats.Connect(fmt.Sprintf("nats://%s:%d", addr[0], f.cfg.ClientPort))
-}
-
-type NATSLogger struct {
-	log.Logger
-}
-
-func NewNATSLogger(l log.Logger) *NATSLogger {
-	return &NATSLogger{log.With(l, "component", "nats")}
-}
-
-// Log a notice statement
-func (l NATSLogger) Noticef(format string, v ...interface{}) {
-	level.Info(l.Logger).Log("msg", fmt.Sprintf(format, v...))
-}
-
-// Log a warning statement
-func (l NATSLogger) Warnf(format string, v ...interface{}) {
-	level.Warn(l.Logger).Log("msg", fmt.Sprintf(format, v...))
-}
-
-// Log a fatal error
-func (l NATSLogger) Fatalf(format string, v ...interface{}) {
-	l.Logger.Log("msg", fmt.Sprintf(format, v...), "level", "fatal")
-}
-
-// Log an error
-func (l NATSLogger) Errorf(format string, v ...interface{}) {
-	level.Error(l.Logger).Log("msg", fmt.Sprintf(format, v...))
-}
-
-// Log a debug statement
-func (l NATSLogger) Debugf(format string, v ...interface{}) {
-	level.Debug(l.Logger).Log("msg", fmt.Sprintf(format, v...))
-}
-
-// Log a trace statement
-func (l NATSLogger) Tracef(format string, v ...interface{}) {
-	l.Logger.Log("msg", fmt.Sprintf(format, v...), "level", "trace")
-}
-
-func (s *NATSService) starting(ctx context.Context) error {
-	s.subservicesWatcher.WatchManager(s.subservices)
-
-	if err := services.StartManagerAndAwaitHealthy(ctx, s.subservices); err != nil {
-		return fmt.Errorf("failed to start subservices: %w", err)
-	}
-	all, _ := s.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
-
-	routes := make([]*url.URL, 0, len(all.Instances))
-	for _, instance := range all.Instances {
-		u, err := url.Parse("nats://" + instance.Addr)
-		if err != nil {
-			continue
-		}
-		routes = append(routes, u)
-	}
-	s.opts.Routes = routes
-	return nil
-}
-
-func (s *NATSService) running(ctx context.Context) error {
-	go func() {
-		<-ctx.Done()
-		s.server.Shutdown()
-	}()
-	// should not do that if we already have a route. too many reload
-	// todo think about how to do that.
-	// go func() {
-
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case <-time.After(2 * time.Second):
-	// 			if len(s.opts.Routes) > 0 {
-	// 				continue
-	// 			}
-	// 			all, _ := s.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
-	// 			routes := make([]*url.URL, 0, len(all.Instances))
-	// 			for _, instance := range all.Instances {
-	// 				u, err := url.Parse("nats://" + instance.Addr)
-	// 				if err != nil {
-	// 					continue
-	// 				}
-	// 				routes = append(routes, u)
-	// 			}
-	// 			if len(routes) == 0 {
-	// 				continue
-	// 			}
-	// 			s.opts.Routes = routes
-	// 			s.server.ReloadOptions(s.opts)
-	// 		}
-	// 	}
-	// }()
-	if err := nats_server.Run(s.server); err != nil {
-		return err
-	}
-	// Adjust MAXPROCS if running under linux/cgroups quotas.
-	undo, err := maxprocs.Set(maxprocs.Logger(s.server.Debugf))
-	if err != nil {
-		s.server.Warnf("Failed to set GOMAXPROCS: %v", err)
-	} else {
-		defer undo()
-	}
-
-	s.server.WaitForShutdown()
-	return nil
-}
-
-func (s *NATSService) stopping(_ error) error {
-	return services.StopManagerAndAwaitStopped(context.Background(), s.subservices)
+	t.Cfg.NATS.Cluster = !t.isModuleActive(All)
+	return nats.NewServer(t.Cfg.NATS)
 }
 
 func portFromAddr(addr string) int {
@@ -567,95 +288,86 @@ func (t *Loki) initTenantConfigs() (_ services.Service, err error) {
 }
 
 func (t *Loki) initDistributor() (services.Service, error) {
-	nastFactory, err := NewNATSFactory(t.Cfg.NATS)
-	if err != nil {
-		return nil, err
-	}
-	if err := services.StartAndAwaitRunning(context.Background(), nastFactory); err != nil {
-		return nil, err
-	}
-	go func() {
-		var conn *nats.Conn
-		for {
-			<-time.After(2 * time.Second)
-			conn, err = nastFactory.GetConn()
-			if err != nil {
-				level.Warn(util_log.Logger).Log("msg", "failed to get nats connection", "err", err)
-				continue
-			}
-			break
-		}
-
-		go func() {
-			conn, err := nastFactory.GetConn()
-			if err != nil {
-				level.Warn(util_log.Logger).Log("msg", "failed to get nats connection for queue consumer", "err", err)
-				return
-			}
-			stream, err := conn.JetStream()
-			if err != nil {
-				level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
-				return
-			}
-			// stream.Subscribe(subj string, cb nats.MsgHandler, opts ...nats.SubOpt)
-			sub, err := stream.QueueSubscribe("push.*", "ingesters", func(msg *nats.Msg) {
-				level.Info(util_log.Logger).Log("msg", "received", "msg", string(msg.Data))
-			})
-			if err != nil {
-				level.Warn(util_log.Logger).Log("msg", "failed to subscribe", "err", err)
-				return
-			}
-			// see https://github.com/nats-io/nats.go/blob/main/examples/nats-qsub/main.go
-			conn.Flush()
-			if err := conn.LastError(); err != nil {
-				level.Warn(util_log.Logger).Log("msg", "failed to flush", "err", err)
-				return
-			}
-			c := make(chan os.Signal, 1)
-			signal.Notify(c, os.Interrupt)
-			level.Info(util_log.Logger).Log("msg", "waiting for interrupt")
-			<-c
-			level.Info(util_log.Logger).Log("msg", "draining")
-			sub.Drain()
-			level.Info(util_log.Logger).Log("msg", "exiting")
-		}()
-		if err := conn.Publish("foo.bar", []byte("hello world")); err != nil {
-			level.Warn(util_log.Logger).Log("msg", "failed to publish", "err", err)
-			return
-		}
-		stream, err := conn.JetStream()
-		if err != nil {
-			level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
-			return
-		}
-		info, err := stream.AddStream(&nats.StreamConfig{
-			Name:      "push",
-			Subjects:  []string{"push.*"},
-			Replicas:  1, // need at least 3 NATS servers if we want replicas 3
-			MaxAge:    4 * time.Hour,
-			Retention: nats.LimitsPolicy,
-			Discard:   nats.DiscardOld,
-		})
-		if err != nil {
-			level.Warn(util_log.Logger).Log("msg", "failed to add stream", "err", err)
-			return
-		}
-		level.Info(util_log.Logger).Log("msg", "added stream", "info", info)
-		ack, err := stream.Publish("push.abc", []byte(`foo`))
-		if err != nil {
-			level.Warn(util_log.Logger).Log("msg", "failed to publish", "err", err)
-			return
-		}
-		level.Info(util_log.Logger).Log("msg", "published", "ack", ack)
-		conn.Flush()
-	}()
-
+	// nastFactory, err := NewNATSFactory(t.Cfg.NATS)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if err := services.StartAndAwaitRunning(context.Background(), nastFactory); err != nil {
+	// 	return nil, err
+	// }
+	// go func() {
+	// go func() {
+	// 	conn, err := nastFactory.GetConn()
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to get nats connection for queue consumer", "err", err)
+	// 		return
+	// 	}
+	// 	stream, err := conn.JetStream()
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
+	// 		return
+	// 	}
+	// 	// stream.Subscribe(subj string, cb nats.MsgHandler, opts ...nats.SubOpt)
+	// 	sub, err := stream.QueueSubscribe("push.*", "ingesters", func(msg *nats.Msg) {
+	// 		level.Info(util_log.Logger).Log("msg", "received", "msg", string(msg.Data))
+	// 	})
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to subscribe", "err", err)
+	// 		return
+	// 	}
+	// 	// see https://github.com/nats-io/nats.go/blob/main/examples/nats-qsub/main.go
+	// 	conn.Flush()
+	// 	if err := conn.LastError(); err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to flush", "err", err)
+	// 		return
+	// 	}
+	// 	c := make(chan os.Signal, 1)
+	// 	signal.Notify(c, os.Interrupt)
+	// 	level.Info(util_log.Logger).Log("msg", "waiting for interrupt")
+	// 	<-c
+	// 	level.Info(util_log.Logger).Log("msg", "draining")
+	// 	sub.Drain()
+	// 	level.Info(util_log.Logger).Log("msg", "exiting")
+	// }()
+	// 	conn, err := nastFactory.GetConn()
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to get nats connection for queue consumer", "err", err)
+	// 		return
+	// 	}
+	// 	stream, err := conn.JetStream()
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
+	// 		return
+	// 	}
+	// 	info, err := stream.AddStream(&nats.StreamConfig{
+	// 		Name:      "push",
+	// 		Subjects:  []string{"push.*"},
+	// 		Replicas:  1, // need at least 3 NATS servers if we want replicas 3
+	// 		MaxAge:    4 * time.Hour,
+	// 		Retention: nats.LimitsPolicy,
+	// 		Discard:   nats.DiscardOld,
+	// 	})
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to add stream", "err", err)
+	// 		return
+	// 	}
+	// 	level.Info(util_log.Logger).Log("msg", "added stream", "info", info)
+	// 	ack, err := stream.Publish("push.abc", []byte(`foo`))
+	// 	if err != nil {
+	// 		level.Warn(util_log.Logger).Log("msg", "failed to publish", "err", err)
+	// 		return
+	// 	}
+	// 	level.Info(util_log.Logger).Log("msg", "published", "ack", ack)
+	// 	conn.Flush()
+	// }()
+	var err error
 	t.distributor, err = distributor.New(
 		t.Cfg.Distributor,
 		t.Cfg.IngesterClient,
 		t.tenantConfigs,
 		t.ring,
 		t.Overrides,
+		t.Cfg.NATS,
 		prometheus.DefaultRegisterer,
 	)
 	if err != nil {
