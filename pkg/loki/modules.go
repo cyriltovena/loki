@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -176,9 +177,10 @@ func (t *Loki) initServer() (services.Service, error) {
 
 type NATSConfig struct {
 	util.RingConfig `yaml:",inline"`
-	ClusterPort     int  `yaml:"cluster_port"`
-	ClientPort      int  `yaml:"client_port"`
-	TraceLogging    bool `yaml:"trace_logging"`
+	ClusterPort     int    `yaml:"cluster_port"`
+	ClientPort      int    `yaml:"client_port"`
+	TraceLogging    bool   `yaml:"trace_logging"`
+	DataPath        string `yaml:"data_path"`
 }
 
 func (cfg *NATSConfig) RegisterFlags(f *flag.FlagSet) {
@@ -186,10 +188,11 @@ func (cfg *NATSConfig) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.ClusterPort, "nats.cluster-port", 4248, "NATS cluster port.")
 	f.IntVar(&cfg.ClientPort, "nats.client-port", 4222, "NATS client port.")
 	f.BoolVar(&cfg.TraceLogging, "nats.trace-logging", false, "Enable NATS trace logging.")
+	f.StringVar(&cfg.DataPath, "nats.data-path", "/tmp/nats/", "NATS data path.")
 }
 
 func (t *Loki) initNATS() (services.Service, error) {
-	return NewNATSService(t.Cfg.NATS)
+	return NewNATSService(t.Cfg.NATS, t.isModuleActive(All))
 }
 
 type NATSService struct {
@@ -202,7 +205,7 @@ type NATSService struct {
 	opts   *nats_server.Options
 }
 
-func NewNATSService(cfg NATSConfig) (services.Service, error) {
+func NewNATSService(cfg NATSConfig, singleNode bool) (services.Service, error) {
 	cfg.InstancePort = cfg.ClusterPort
 	ringStore, err := kv.NewClient(
 		cfg.KVStore,
@@ -238,17 +241,23 @@ func NewNATSService(cfg NATSConfig) (services.Service, error) {
 		Users: []*nats_server.User{
 			{Username: "loki", Password: "loki", Account: nats_server.NewAccount("$SYS")},
 		},
-		Cluster: nats_server.ClusterOpts{
+	}
+	if !singleNode {
+		opts.Cluster = nats_server.ClusterOpts{
 			Name:      "loki-nats-cluster",
 			Advertise: cfg.InstanceAddr + ":" + strconv.Itoa(cfg.InstancePort),
 			Port:      cfg.InstancePort,
-		},
+		}
+	}
+	if cfg.DataPath != "" {
+		opts.StoreDir = cfg.DataPath
+		opts.JetStream = true
 	}
 	natsServer := nats_server.New(opts)
 	if natsServer == nil {
 		return nil, fmt.Errorf("failed to create nats server")
 	}
-	natsServer.SetLoggerV2(NewNATSLogger(util_log.Logger), true, cfg.TraceLogging, false)
+	natsServer.SetLoggerV2(NewNATSLogger(util_log.Logger), true, cfg.TraceLogging, true)
 	subSvc, err := services.NewManager(lc, ringClient)
 	if err != nil {
 		return nil, err
@@ -320,8 +329,16 @@ func (f *NATSFactory) GetConn() (*nats.Conn, error) {
 	if len(all.Instances) == 0 {
 		return nil, fmt.Errorf("no nats instances found")
 	}
-	// remove port from Addr
+	// remove port from Addr and use client port from NATS Config
 	addr := strings.Split(all.Instances[0].Addr, ":")
+
+	// todo connect using multiple addresses
+	// var servers = "nats://localhost:1222, nats://localhost:1223, nats://localhost:1224"
+	// nc, err := nats.Connect(servers)
+	// // Optionally set ReconnectWait and MaxReconnect attempts.
+	// // This example means 10 seconds total per backend.
+	// nc, err = nats.Connect(servers, nats.MaxReconnects(5), nats.ReconnectWait(2 * time.Second))
+
 	return nats.Connect(fmt.Sprintf("nats://%s:%d", addr[0], f.cfg.ClientPort))
 }
 
@@ -569,23 +586,68 @@ func (t *Loki) initDistributor() (services.Service, error) {
 			break
 		}
 
+		go func() {
+			conn, err := nastFactory.GetConn()
+			if err != nil {
+				level.Warn(util_log.Logger).Log("msg", "failed to get nats connection for queue consumer", "err", err)
+				return
+			}
+			stream, err := conn.JetStream()
+			if err != nil {
+				level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
+				return
+			}
+			// stream.Subscribe(subj string, cb nats.MsgHandler, opts ...nats.SubOpt)
+			sub, err := stream.QueueSubscribe("push.*", "ingesters", func(msg *nats.Msg) {
+				level.Info(util_log.Logger).Log("msg", "received", "msg", string(msg.Data))
+			})
+			if err != nil {
+				level.Warn(util_log.Logger).Log("msg", "failed to subscribe", "err", err)
+				return
+			}
+			// see https://github.com/nats-io/nats.go/blob/main/examples/nats-qsub/main.go
+			conn.Flush()
+			if err := conn.LastError(); err != nil {
+				level.Warn(util_log.Logger).Log("msg", "failed to flush", "err", err)
+				return
+			}
+			c := make(chan os.Signal, 1)
+			signal.Notify(c, os.Interrupt)
+			level.Info(util_log.Logger).Log("msg", "waiting for interrupt")
+			<-c
+			level.Info(util_log.Logger).Log("msg", "draining")
+			sub.Drain()
+			level.Info(util_log.Logger).Log("msg", "exiting")
+		}()
+		if err := conn.Publish("foo.bar", []byte("hello world")); err != nil {
+			level.Warn(util_log.Logger).Log("msg", "failed to publish", "err", err)
+			return
+		}
 		stream, err := conn.JetStream()
 		if err != nil {
 			level.Warn(util_log.Logger).Log("msg", "failed to get jetstream", "err", err)
 			return
 		}
-
-		// todo read the doc and activate storage.
-		// stream.AddStream(&nats.StreamConfig{
-		// 	Name:     "foo",
-		// 	Subjects: []string{"foo"},
-		// })
-		ack, err := stream.Publish("{app=\"foo\"}", []byte(`foo`))
+		info, err := stream.AddStream(&nats.StreamConfig{
+			Name:      "push",
+			Subjects:  []string{"push.*"},
+			Replicas:  1, // need at least 3 NATS servers if we want replicas 3
+			MaxAge:    4 * time.Hour,
+			Retention: nats.LimitsPolicy,
+			Discard:   nats.DiscardOld,
+		})
+		if err != nil {
+			level.Warn(util_log.Logger).Log("msg", "failed to add stream", "err", err)
+			return
+		}
+		level.Info(util_log.Logger).Log("msg", "added stream", "info", info)
+		ack, err := stream.Publish("push.abc", []byte(`foo`))
 		if err != nil {
 			level.Warn(util_log.Logger).Log("msg", "failed to publish", "err", err)
 			return
 		}
 		level.Info(util_log.Logger).Log("msg", "published", "ack", ack)
+		conn.Flush()
 	}()
 
 	t.distributor, err = distributor.New(
