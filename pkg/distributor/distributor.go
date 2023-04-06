@@ -283,6 +283,10 @@ func (d *Distributor) running(ctx context.Context) error {
 }
 
 func (d *Distributor) stopping(_ error) error {
+	if d.conn != nil {
+		// may be close ?
+		d.conn.Drain()
+	}
 	return services.StopManagerAndAwaitStopped(context.Background(), d.subservices)
 }
 

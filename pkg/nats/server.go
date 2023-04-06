@@ -136,6 +136,7 @@ func (s *Server) running(ctx context.Context) error {
 				if len(s.opts.Routes) > 0 {
 					continue
 				}
+				// todo we should compare and remove dead routes.
 				all, _ := s.ring.GetAllHealthy(ring.NewOp([]ring.InstanceState{ring.ACTIVE}, nil))
 				routes := make([]*url.URL, 0, len(all.Instances))
 				for _, instance := range all.Instances {
