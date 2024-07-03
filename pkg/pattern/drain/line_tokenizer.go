@@ -150,26 +150,57 @@ func newLogfmtTokenizer(varReplace string) *logfmtTokenizer {
 
 func (t *logfmtTokenizer) Tokenize(line string) ([]string, interface{}) {
 	var tokens []string
+	var spaces []uint16
 	t.dec.Reset([]byte(line))
 	for !t.dec.EOL() && t.dec.ScanKeyval() {
 		key := t.dec.Key()
 		if isTimeStampField(key) {
 			tokens = append(tokens, string(t.dec.Key()), t.varReplace)
-
+			spaces = append(spaces, 1)
 			continue
 		}
-		tokens = append(tokens, string(t.dec.Key()), string(t.dec.Value()))
+		fields := bytes.Split(t.dec.Value(), []byte(" "))
+		fieldsCount := len(fields)
+		if fieldsCount == 1 {
+			tokens = append(tokens, string(t.dec.Key()), string(t.dec.Value()))
+			spaces = append(spaces, 1)
+			continue
+		}
+		tokens = append(tokens, string(t.dec.Key()))
+		for _, field := range fields {
+			tokens = append(tokens, string(field))
+		}
+		spaces = append(spaces, uint16(fieldsCount))
+
 	}
 	if t.dec.Err() != nil {
 		return nil, nil
 	}
-	return tokens, nil
+	return tokens, spaces
 }
 
 func (t *logfmtTokenizer) Join(tokens []string, state interface{}) string {
 	if len(tokens) == 0 {
 		return ""
 	}
+	spaces := state.([]uint16)
+	// rejoin the tokens
+	joinedTokens := make([]string, 0, len(spaces)*2)
+	j := 0
+	for i := 0; i < len(spaces); i++ {
+		joinedTokens = append(joinedTokens, tokens[j])
+		spacesCount := int(spaces[i])
+		if spacesCount == 1 {
+			joinedTokens = append(joinedTokens, tokens[j+1])
+			j = j + 2
+			continue
+		}
+		joinedTokens = append(joinedTokens, strings.Join(tokens[j+1:j+1+spacesCount], " "))
+		j += spacesCount + 1
+
+	}
+
+	tokens = joinedTokens
 	if len(tokens)%2 == 1 {
 		tokens = append(tokens, "")
 	}
