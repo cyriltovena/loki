@@ -1753,10 +1753,9 @@ func (r *Reader) Size() int64 {
 }
 
 // LabelNames returns all the unique label names present in the index.
-// TODO(twilkie) implement support for matchers.
-func (r *Reader) LabelNames(_ context.Context, matchers ...*labels.Matcher) ([]string, error) {
+func (r *Reader) LabelNames(ctx context.Context, matchers ...*labels.Matcher) ([]string, error) {
 	if len(matchers) > 0 {
-		return nil, fmt.Errorf("matchers parameter is not implemented: %+v", matchers)
+		return r.labelNamesWithMatchers(ctx, matchers...)
 	}
 	labelNames := make([]string, 0, len(r.postings))
 	for name := range r.postings {
@@ -1768,6 +1767,23 @@ func (r *Reader) LabelNames(_ context.Context, matchers ...*labels.Matcher) ([]s
 	}
 	slices.Sort(labelNames)
 	return labelNames, nil
+}
+
+func (r *Reader) labelNamesWithMatchers(ctx context.Context, matchers ...*labels.Matcher) ([]string, error) {
+	p, err := r.PostingsForMatchers(ctx, matchers...)
+	if err != nil {
+		return nil, err
+	}
+
+	var postings []storage.SeriesRef
+	for p.Next() {
+		postings = append(postings, p.At())
+	}
+	if err := p.Err(); err != nil {
+		return nil, fmt.Errorf("postings for label names with matchers: %w", err)
+	}
+
+	return r.LabelNamesFor(ctx, postings...)
 }
 
 // Decoder provides decoding methods for the v1 and v2 index file format.

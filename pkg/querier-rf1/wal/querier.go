@@ -111,6 +111,28 @@ func (q *Querier) SelectSamples(ctx context.Context, req logql.SelectSampleParam
 		req.End.UnixNano()), nil
 }
 
+func (q *Querier) LabelsNames(ctx context.Context, tenantID string, from, through int64, matchers ...*labels.Matcher) {
+	var (
+		results [][]string
+		mtx     sync.Mutex
+	)
+	q.forIndices(ctx, &metastorepb.ListBlocksForQueryRequest{
+		TenantId:  tenantID,
+		StartTime: from,
+		EndTime:   through,
+	}, func(ir *index.Reader, id string) error {
+		// copy matchers to avoid modifying the original slice.
+		ms := make([]*labels.Matcher, 0, len(matchers)+1)
+		ms = append(ms, matchers...)
+		ms = append(ms, labels.MustNewMatcher(labels.MatchEqual, index.TenantLabel, tenantID))
+		res, err := ir.LabelNames(ctx, ms...)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (q *Querier) matchingChunks(ctx context.Context, tenantID string, from, through int64, matchers ...*labels.Matcher) ([]ChunkData, error) {
 	// todo support sharding
 	var (
