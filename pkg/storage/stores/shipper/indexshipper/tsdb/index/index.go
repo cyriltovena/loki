@@ -2575,3 +2575,84 @@ func overlap(from, through, chkFrom, chkThrough int64) bool {
 	// sample timestamp in the chunk, whereas through is exclusive
 	return from <= chkThrough && through > chkFrom
 }
+
+// Add these methods after the Size() method
+
+// LabelIndicesSize returns the total size of label indices section in bytes.
+func (r *Reader) LabelIndicesSize() uint64 {
+	// Size is from start of label indices to start of next section (postings)
+	return r.toc.Postings - r.toc.LabelIndices
+}
+
+// PostingsSize returns the total size of postings section in bytes.
+func (r *Reader) PostingsSize() uint64 {
+	// Size is from start of postings to start of next section (label indices table)
+	return r.toc.LabelIndicesTable - r.toc.Postings
+}
+
+// PostingsTableSize returns the total size of postings table section in bytes.
+func (r *Reader) PostingsTableSize() uint64 {
+	// Size is from start of postings table to start of next section (fingerprint offsets)
+	return r.toc.FingerprintOffsets - r.toc.PostingsTable
+}
+
+// LabelIndicesTableSize returns the total size of label indices table section in bytes.
+func (r *Reader) LabelIndicesTableSize() uint64 {
+	// Size is from start of label indices table to start of next section (postings table)
+	return r.toc.PostingsTable - r.toc.LabelIndicesTable
+}
+
+// SeriesSize returns the total size of series section in bytes.
+func (r *Reader) SeriesSize() uint64 {
+	// Size is from start of series to start of next section (label indices)
+	return r.toc.LabelIndices - r.toc.Series
+}
+
+// SeriesLabelsSize returns the size of just the series label definitions in bytes.
+func (r *Reader) SeriesLabelsSize() uint64 {
+	var labelsSize uint64
+	k, v := AllPostingsKey()
+	postings, err := r.Postings(k, nil, v)
+	if err != nil {
+		return 0
+	}
+	for postings.Next() {
+		id := postings.At()
+		offset := id
+		// In version 2+ series IDs are no longer exact references but series are 16-byte padded
+		// and the ID is the multiple of 16 of the actual position.
+		if r.version >= FormatV2 {
+			offset = id * 16
+		}
+		d := encoding.DecWrap(tsdb_enc.NewDecbufUvarintAt(r.b, int(offset), castagnoliTable))
+		if d.Err() != nil {
+			return 0
+		}
+		dec := encoding.DecWrap(tsdb_enc.Decbuf{B: d.Get()})
+		_ = dec.Be64()
+		k := dec.Uvarint()
+
+		for i := 0; i < k; i++ {
+			_ = uint32(dec.Uvarint())
+			_ = uint32(dec.Uvarint())
+
+			if dec.Err() != nil {
+				return 0
+			}
+		}
+		labelsSize += uint64(d.Len() - dec.Len())
+	}
+	return labelsSize
+}
+
+// SeriesChunksSize returns the size of just the series chunks metadata in bytes.
+func (r *Reader) SeriesChunksSize() uint64 {
+	// Total series size minus the labels size gives us the chunks metadata size
+	return r.SeriesSize() - r.SeriesLabelsSize()
+}
+
+// TotalIndexSize returns the combined size of all index sections in bytes.
+func (r *Reader) TotalIndexSize() uint64 {
+	return r.SeriesSize() + r.LabelIndicesSize() + r.PostingsSize() +
+		r.LabelIndicesTableSize() + r.PostingsTableSize()
+}
