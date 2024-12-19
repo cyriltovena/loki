@@ -142,6 +142,7 @@ const (
 	PartitionRing            string = "partition-ring"
 	BlockBuilder             string = "block-builder"
 	BlockScheduler           string = "block-scheduler"
+	Usage                    string = "usage"
 )
 
 const (
