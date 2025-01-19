@@ -50,6 +50,7 @@ import (
 	"github.com/grafana/loki/v3/pkg/compactor/deletion"
 	"github.com/grafana/loki/v3/pkg/compactor/generationnumber"
 	"github.com/grafana/loki/v3/pkg/dataobj/consumer"
+	"github.com/grafana/loki/v3/pkg/dataobj/explorer"
 	"github.com/grafana/loki/v3/pkg/distributor"
 	"github.com/grafana/loki/v3/pkg/indexgateway"
 	"github.com/grafana/loki/v3/pkg/ingester"
@@ -92,6 +93,7 @@ import (
 	lokiring "github.com/grafana/loki/v3/pkg/util/ring"
 	serverutil "github.com/grafana/loki/v3/pkg/util/server"
 	"github.com/grafana/loki/v3/pkg/validation"
+	"github.com/thanos-io/objstore"
 )
 
 const maxChunkAgeForTableManager = 12 * time.Hour
@@ -140,6 +142,7 @@ const (
 	BlockBuilder             = "block-builder"
 	BlockScheduler           = "block-scheduler"
 	DataObjConsumer          = "dataobj-consumer"
+	DataObjExplorer          = "dataobj-explorer"
 
 	All     = "all"
 	Read    = "read"
@@ -1915,6 +1918,31 @@ func (t *Loki) initDataObjConsumer() (services.Service, error) {
 	)
 
 	return t.dataObjConsumer, nil
+}
+
+func (t *Loki) initDataObjExplorer() (services.Service, error) {
+	schema, err := t.Cfg.SchemaConfig.SchemaForTime(model.Now())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema for now: %w", err)
+	}
+
+	var store objstore.Bucket
+	store, err = bucket.NewClient(context.Background(), schema.ObjectType, t.Cfg.StorageConfig.ObjectStore.Config, "dataobj-explorer", util_log.Logger)
+	if err != nil {
+		return nil, err
+	}
+
+	if t.Cfg.DataObjExplorer.StorageBucketPrefix != "" {
+		store = objstore.NewPrefixedBucket(store, t.Cfg.DataObjExplorer.StorageBucketPrefix)
+	}
+
+	explorer, err := explorer.New(store, util_log.Logger)
+	if err != nil {
+		return nil, err
+	}
+
+	t.Server.HTTP.PathPrefix("/dataobj/explorer/").Handler(explorer.Handler())
+	return explorer, nil
 }
 
 func (t *Loki) deleteRequestsClient(clientType string, limits limiter.CombinedLimits) (deletion.DeleteRequestsClient, error) {
