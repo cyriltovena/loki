@@ -40,6 +40,10 @@ func NewDeleteRequestHandler(deleteStore DeleteRequestsStore, maxInterval time.D
 
 // AddDeleteRequestHandler handles addition of a new delete request
 func (dm *DeleteRequestHandler) AddDeleteRequestHandler(w http.ResponseWriter, r *http.Request) {
+	if dm == nil {
+		http.Error(w, "Retention is not enabled", http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
@@ -172,6 +176,10 @@ func min(a, b time.Duration) time.Duration {
 
 // GetAllDeleteRequestsHandler handles get all delete requests
 func (dm *DeleteRequestHandler) GetAllDeleteRequestsHandler(w http.ResponseWriter, r *http.Request) {
+	if dm == nil {
+		http.Error(w, "Retention is not enabled", http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
@@ -253,6 +261,10 @@ func deleteRequestStatus(processed, total int) DeleteRequestStatus {
 
 // CancelDeleteRequestHandler handles delete request cancellation
 func (dm *DeleteRequestHandler) CancelDeleteRequestHandler(w http.ResponseWriter, r *http.Request) {
+	if dm == nil {
+		http.Error(w, "Retention is not enabled", http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
@@ -306,6 +318,10 @@ func filterProcessed(reqs []DeleteRequest) []DeleteRequest {
 
 // GetCacheGenerationNumberHandler handles requests for a user's cache generation number
 func (dm *DeleteRequestHandler) GetCacheGenerationNumberHandler(w http.ResponseWriter, r *http.Request) {
+	if dm == nil {
+		http.Error(w, "Retention is not enabled", http.StatusBadRequest)
+		return
+	}
 	ctx := r.Context()
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {

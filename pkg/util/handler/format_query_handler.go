@@ -1,4 +1,4 @@
-package loki
+package handler
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/loki/v3/pkg/util/server"
 )
 
-func formatQueryHandler() http.HandlerFunc {
+func NewFormatQuery() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var (
 			statusCode = http.StatusOK
@@ -40,7 +40,6 @@ func formatQueryHandler() http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			server.WriteError(err, w)
 		}
-
 	}
 }
 

@@ -5,12 +5,13 @@ FROM node:20-alpine AS ui-builder
 RUN apk add --no-cache make
 COPY . /src/loki
 WORKDIR /src/loki
-RUN make -C pkg/dataobj/explorer/ui build
+RUN make -C pkg/dataobj/explorer/ui build && make -C pkg/compactor/ui build
 
 # Go build stage
 FROM golang:${GO_VERSION} AS build
 COPY . /src/loki
 COPY --from=ui-builder /src/loki/pkg/dataobj/explorer/dist /src/loki/pkg/dataobj/explorer/dist
+COPY --from=ui-builder /src/loki/pkg/compactor/ui/dist /src/loki/pkg/compactor/ui/dist
 WORKDIR /src/loki
 RUN make clean && make BUILD_IN_CONTAINER=false loki
 

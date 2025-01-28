@@ -1,4 +1,4 @@
-package loki
+package handler
 
 import (
 	"encoding/json"
@@ -42,7 +42,7 @@ func Test_formatQueryHandlerResponse(t *testing.T) {
 
 			w := httptest.NewRecorder()
 
-			formatQueryHandler()(w, req)
+			NewFormatQuery()(w, req)
 
 			var got FormatQueryResponse
 
