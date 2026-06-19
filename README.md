@@ -1,4 +1,5 @@
 <p align="center"><img src="docs/sources/logo_and_name.png" alt="Loki Logo"></p>
+<!-- test: simple change for testing -->
 
 <a href="https://drone.grafana.net/grafana/loki"><img src="https://drone.grafana.net/api/badges/grafana/loki/status.svg" alt="Drone CI" /></a>
 <a href="https://circleci.com/gh/grafana/loki/tree/master"><img src="https://circleci.com/gh/grafana/loki.svg?style=shield&circle-token=618193e5787b2951c1ea3352ad5f254f4f52313d" alt="CircleCI" /></a>
