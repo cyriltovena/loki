@@ -146,3 +146,5 @@ $ CGO_ENABLED=0 go build ./cmd/promtail
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
+
+<!-- assistant: test branch created 2026-06-19T21:01:04Z -->
