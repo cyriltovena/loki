@@ -146,3 +146,5 @@ $ CGO_ENABLED=0 go build ./cmd/promtail
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
+
+<!-- test comment -->
