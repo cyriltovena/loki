@@ -146,3 +146,30 @@ $ CGO_ENABLED=0 go build ./cmd/promtail
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
+
+---
+
+## What is Loki?
+
+Loki is a horizontally-scalable, highly-available, multi-tenant log aggregation system built by Grafana Labs. Inspired by Prometheus, it uses the same label-based approach for indexing — but applied to logs instead of metrics. This makes it a natural complement to Prometheus in a full observability stack.
+
+Unlike traditional log aggregation systems, Loki **does not index the full text** of log lines. Instead, it indexes only the metadata (labels), keeping storage costs low and operational complexity minimal.
+
+### Quick Start
+
+The fastest way to try Loki locally is with Docker Compose:
+
+```bash
+# Clone the repository
+git clone https://github.com/grafana/loki.git
+cd loki
+
+# Start Loki, Promtail, and Grafana
+docker-compose -f production/docker-compose.yaml up -d
+```
+
+Once running, open Grafana at `http://localhost:3000` (default credentials `admin`/`admin`), add Loki as a datasource (`http://loki:3100`), and explore your logs in the **Explore** view.
+
+For more detailed installation options (Helm, single-binary, microservices), see the [official installation docs](https://grafana.com/docs/loki/latest/installation/).
+
+> 📖 A deeper technical overview can be found in [`docs/overview.md`](docs/overview.md).
